@@ -1,0 +1,40 @@
+[workspace]
+members = ["oboron"]
+resolver = "2"
+
+# Release / bench profiles defined at the workspace level so they
+# actually apply (package-level profiles on non-root members are
+# silently ignored by Cargo). LTO is critical now that the hot path
+# crosses the workspace → obcrypt path-dep boundary.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+[profile.bench]
+inherits = "release"
+
+[workspace.dependencies]
+# Internal: bytes-in/bytes-out cryptographic core
+obcrypt = { version = "0.1.0", default-features = false }
+
+# Crypto dependencies
+aes = "0.8"
+cipher = "0.4"
+data-encoding = "2.6"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# CLI dependencies
+clap = { version = "4.5", features = ["derive"] }
+clap_complete = "4.5"
+
+# Utilities
+dirs = "5.0"
+rand = "0.8"

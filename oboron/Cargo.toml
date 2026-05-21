@@ -1,0 +1,249 @@
+[package]
+name = "oboron"
+version = "0.8.0"
+edition = "2021"
+rust-version = "1.77.0"
+license = "MIT"
+repository = "https://gitlab.com/oboron/oboron-rs"
+authors = ["Bojan Đuričković"]
+description = "Encryption and encoding library for developer ergonomics: prefix entropy, compact outputs, high performance"
+keywords = ["encryption", "obfuscation", "encoding", "base32", "identifiers"]
+categories = ["cryptography", "encoding"]
+readme = "README.md"
+homepage = "https://oboron.org/"
+documentation = "https://oboron.org/spec"
+
+[features]
+# Default: all production-ready secure schemes + transitional base64
+# key support. `base64-keys` is deprecated and will be removed at 1.0;
+# everything behind that gate goes with it.
+default = ["secure-schemes", "base64-keys"]
+
+# All five secure schemes (a-tier + u-tier). The default scheme group.
+secure-schemes = ["aasv", "apsv", "aags", "apgs", "upbc"]
+
+# Individual schemes. Forwarding to obcrypt/* gates both the wrapper
+# code in this crate and the AES backend pulled by obcrypt.
+aasv = ["obcrypt/aasv"]
+apsv = ["obcrypt/apsv"]
+aags = ["obcrypt/aags"]
+apgs = ["obcrypt/apgs"]
+upbc = ["obcrypt/upbc"]
+
+# Insecure / obfuscation-only z-tier scheme. Pulls AES+CBC directly
+# since z-tier code lives in this crate, not in obcrypt. `obcrypt/mock`
+# is an anchor scheme — obcrypt cannot compile with zero schemes
+# enabled, and mock is the identity (no crypto cost).
+zrbcx = ["aes", "cipher", "cbc", "obcrypt/mock"]
+
+# Backward-compat scheme used by early adopters.
+legacy = ["aes", "cipher", "cbc", "obcrypt/mock"]
+
+# Testing-only mock schemes (mock1, mock2, zmock1; no encryption).
+mock = ["obcrypt/mock"]
+
+# Hardcoded-key constructors for testing/obfuscation.
+keyless = []
+
+# Skip UTF-8 validation post-decrypt. Wrong-key decrypts will return
+# garbage rather than InvalidUtf8.
+unchecked-utf8 = []
+
+# Deprecated: base64 string keys + HARDCODED_KEY_BASE64. Default-on
+# for this release; will be removed at 1.0 along with everything the
+# gate covers.
+base64-keys = []
+
+[dependencies]
+# Internal: bytes-in/bytes-out cryptographic core
+obcrypt = { workspace = true, default-features = false }
+
+# Always needed
+zeroize = { version = "1", features = ["derive"] }
+data-encoding = "2.5"
+generic-array = "1.0"
+num-bigint = "0.4.6"
+thiserror = "1.0"
+hex = "0.4"
+
+# Conditionally included based on features (z-tier schemes only;
+# secure-tier schemes live in obcrypt and pull these themselves).
+aes = { version = "0.8", optional = true }
+cipher = { version = "0.4", optional = true }
+cbc = { version = "0.1", optional = true }
+once_cell = "1.21.3"
+
+# rand with getrandom - use default features on native, add getrandom/js on wasm
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+rand = "0.8"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+rand = { version = "0.8", features = ["getrandom"] }
+getrandom = { version = "0.2", features = ["js"] }
+
+[lib]
+name = "oboron"
+path = "src/lib.rs"
+crate-type = ["rlib"]  # Standard Rust library crate (WASM compatible)
+
+[[bin]]
+name = "keygen"
+path = "src/bin/keygen.rs"
+
+[[bin]]
+name = "secretgen"
+path = "src/bin/secretgen.rs"
+
+[[bin]]
+name = "hex2b64"
+path = "src/bin/hex2b64.rs"
+
+[dev-dependencies]
+oboron = { path = ".", features = ["secure-schemes", "zrbcx", "legacy", "mock", "keyless", "base64-keys"] }
+criterion = { version = "0.5", features = ["html_reports"] }
+hex = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+jsonwebtoken = "9.3"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+
+[profile.bench]
+inherits = "release"
+
+[[test]]
+name = "test_mock1"
+path = "tests/test_mock1.rs"
+harness = true
+
+[[test]]
+name = "integration_test"
+path = "tests/integration_tests.rs"
+harness = true
+
+[[bench]]
+name = "ob"
+harness = false
+
+[[bench]]
+name = "obz"
+harness = false
+
+[[bench]]
+name = "omnib"
+harness = false
+
+[[bench]]
+name = "zrbcx_c32"
+harness = false
+
+[[bench]]
+name = "zrbcx_b32"
+harness = false
+
+[[bench]]
+name = "zrbcx_b64"
+harness = false
+
+[[bench]]
+name = "zrbcx_hex"
+harness = false
+
+[[bench]]
+name = "upbc_c32"
+harness = false
+
+[[bench]]
+name = "upbc_b32"
+harness = false
+
+[[bench]]
+name = "upbc_b64"
+harness = false
+
+[[bench]]
+name = "upbc_hex"
+harness = false
+
+[[bench]]
+name = "aags_c32"
+harness = false
+
+[[bench]]
+name = "aags_b32"
+harness = false
+
+[[bench]]
+name = "aags_b64"
+harness = false
+
+[[bench]]
+name = "aags_hex"
+harness = false
+
+[[bench]]
+name = "apgs_c32"
+harness = false
+
+[[bench]]
+name = "apgs_b32"
+harness = false
+
+[[bench]]
+name = "apgs_b64"
+harness = false
+
+[[bench]]
+name = "apgs_hex"
+harness = false
+
+[[bench]]
+name = "aasv_c32"
+harness = false
+
+[[bench]]
+name = "aasv_b32"
+harness = false
+
+[[bench]]
+name = "aasv_b64"
+harness = false
+
+[[bench]]
+name = "aasv_hex"
+harness = false
+
+[[bench]]
+name = "apsv_c32"
+harness = false
+
+[[bench]]
+name = "apsv_b32"
+harness = false
+
+[[bench]]
+name = "apsv_b64"
+harness = false
+
+[[bench]]
+name = "apsv_hex"
+harness = false
+
+[[bench]]
+name = "legacy_b32"
+harness = false
+
+[[bench]]
+name = "test123"
+harness = false
+
+[[bench]]
+name = "z_sha256"
+harness = false
+
+[[bench]]
+name = "z_jwt"
