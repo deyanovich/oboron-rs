@@ -17,6 +17,37 @@ but note that pre-1.0 releases may not adhere strictly to all guidelines.
 ### Fixed
 
 
+[oboron v0.8.1] - 2026-05-22
+------------------------------
+
+### Changed
+
+- **`obcrypt` bumped to 0.2.0**
+  ([release notes](https://crates.io/crates/obcrypt/0.2.0)).
+  obcrypt's 0.2.0 dropped the `secure-schemes`, `atier`, and
+  `utier` aggregate feature names; oboron already forwarded
+  per-scheme (`obcrypt/aags`, `obcrypt/apsv`, etc.) and never
+  referenced the aggregates, so this is a transparent dep
+  bump. No oboron API, behavior, or framed-payload format
+  change. obcrypt 0.2.0 carries no code changes versus 0.1.1
+  — only its feature-flag names shifted.
+- **Workspace dep on `obcrypt` is now registry-only.** The
+  `[workspace.dependencies]` entry no longer carries a
+  `path = "../obcrypt-rs/obcrypt"` attribute; obcrypt is
+  resolved purely from crates.io. The hybrid path/version
+  form was a pre-publish bootstrap artifact; with obcrypt
+  shipping its own releases, the path attribute would only
+  hide registry-resolution issues until publish time.
+
+### Fixed
+
+- **Dead `[profile.release]` / `[profile.bench]` removed**
+  from `oboron/Cargo.toml`. Cargo silently ignores
+  non-root-package profile sections and warned about them
+  every build; the equivalent settings at the workspace
+  root were already authoritative.
+
+
 [oboron v0.8.0] - 2026-05-20
 ------------------------------
 

@@ -56,12 +56,12 @@ Key Advantages:
 Add to your `Cargo.toml`:
 ```toml
 [dependencies]
-oboron = "1.0" # default features
+oboron = "0.8" # default features
 # or with minimal features:
-# oboron = { version = "1.0", features = ["aasv", "apsv"] }
+# oboron = { version = "0.8", features = ["aasv", "apsv"] }
 ```
 
-Generate your 512-bit key (86 base64 characters) using the keygen script
+Generate your 512-bit key (128 hex characters) using the keygen script
 (always included with the crate, not feature-gated):
 ```shell
 cargo run --bin keygen
@@ -89,9 +89,6 @@ println!("obtext: {}", ot);
 
 assert_eq!(pt2, "hello, world");
 ```
-
-*Version 1.0*: This release marks API stability. Oboron follows semantic
-versioning, so 1.x releases will maintain backward compatibility.
 
 ## Formats
 
@@ -308,39 +305,31 @@ are extracted on-the-fly and never cached or stored.
 
 ### Key Format
 
-The default key input format is base64. This is consistent with Oboron's
-strings-first API design. As any production use will typically read the
-key from an environment variable, this allows the string format to be
-directly fed into the constructor.
+The canonical key input format is hex: a 128-character lowercase string
+encoding the 512-bit master key. Hex was chosen for its strict
+alphabet — no padding edge cases, no `-`/`_` characters, double-click
+selectable in any terminal — and is what `oboron::generate_key()` and
+`cargo run --bin keygen` produce. This is consistent with Oboron's
+strings-first API design: typical production use reads the key from an
+environment variable, and the string can be passed straight into any
+constructor.
 
-The base64 format was chosen for its compactness, as an 86-character
-base64 key is easier to handle manually (in secrets or environment
-variables management UI) than a 128-character hex key.
+Raw byte keys are also supported unconditionally:
+```rust
+let ob = AasvC32::from_bytes(&key_bytes)?;
+```
 
-While any 512-bit key is accepted by Oboron, the keys generated with
-`oboron::generate_key()` or `cargo run --bin keygen` do not include any
-dashes or underscores, in order to ensure the keys are double-click
-selectable, and to avoid any human visual parsing due to underscores.
+> **Note:** Base64 key input (an 86-character form) is supported under
+> the default-on but **deprecated** `base64-keys` feature. The
+> auto-detecting `::new(&key)` constructors accept either form
+> (128 chars → hex, 86 chars → base64). Base64 key APIs will be removed
+> at `oboron 1.0`; migrate to hex.
 
-#### Valid Base64 Keys
+#### Keyless mode
 
-**Important technical detail:** Not every 86-character base64 string is a
-valid 512-bit key.  Since 512 bits requires 85.3 bytes when
-base64-encoded, the final character is constrained by padding
-requirements. When generating keys, it is recommended to use one of the
-following methods:
-1. use Oboron's key generator (`oboron::generate_key()` or
-  `cargo run --bin keygen`)
-2. generate random 64 bytes, then encode as base64
-3. generate random 128 hex characters, then convert hexadecimal to base64
-
-#### Alternative Key Interfaces
-
-For specialized use-cases:
-- Enable `hex-keys` feature for hexadecimal key input
-- Enable `bytes-keys` feature for raw byte key input
-- Enable `keyless` feature for testing/development (uses hardcoded key -
-  no security)
+Enable the `keyless` feature for testing or non-security obfuscation —
+it provides `::new_keyless()` constructors that use a publicly
+documented hardcoded key. Not for production.
 
 ## Properties
 
@@ -615,13 +604,13 @@ Examples:
 
 ```toml
 # Minimal: only aasv (deterministic AES-SIV).
-oboron = { version = "1.0", default-features = false, features = ["aasv"] }
+oboron = { version = "0.8", default-features = false, features = ["aasv"] }
 
 # Both SIV schemes.
-oboron = { version = "1.0", default-features = false, features = ["aasv", "apsv"] }
+oboron = { version = "0.8", default-features = false, features = ["aasv", "apsv"] }
 
 # Default behavior but without the deprecated base64 keys.
-oboron = { version = "1.0", default-features = false, features = ["secure-schemes"] }
+oboron = { version = "0.8", default-features = false, features = ["secure-schemes"] }
 ```
 
 At least one scheme feature must be enabled — building with no
@@ -709,7 +698,7 @@ let ot = ob.enc("Hello World")?;
 
 **Benefits:**
 - No manual hex/base64 encoding/decoding
-- Keys as base64 strings (no byte array management)
+- Keys as hex strings (no byte array management)
 - Built-in nonce generation where applicable
 - Consistent error handling
 - Single dependency vs multiple cryptographic crates
