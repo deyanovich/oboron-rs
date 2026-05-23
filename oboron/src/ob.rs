@@ -87,7 +87,7 @@ impl Ob {
     /// The key format is auto-detected by length: 128 chars → hex
     /// (canonical), 86 chars → base64 (deprecated; behind the
     /// `base64-keys` feature). For format-explicit constructors see
-    /// [`Self::from_hex_key`] / [`Self::from_key_base64`].
+    /// [`Self::from_hex_key`] / [`Self::from_base64_key`].
     ///
     /// The base64 path is transitional and will be removed before
     /// oboron 1.0 — migrate keys to hex.
@@ -106,15 +106,31 @@ impl Ob {
     #[cfg(feature = "base64-keys")]
     #[deprecated(
         since = "0.7.1",
-        note = "use Ob::new() (hex) instead; base64 key support will be removed before oboron 1.0"
+        note = "use Ob::new() / Ob::from_hex_key() (hex) instead; base64 key support will be removed before oboron 1.0"
     )]
-    pub fn from_key_base64(format: impl IntoFormat, key_b64: &str) -> Result<Self, Error> {
+    pub fn from_base64_key(format: impl IntoFormat, key_b64: &str) -> Result<Self, Error> {
         let format = format.into_format()?;
         Ok(Self {
             #[allow(deprecated)]
             masterkey: MasterKey::from_base64(key_b64)?,
             format,
         })
+    }
+
+    /// Deprecated alias for [`Self::from_base64_key`].
+    ///
+    /// The 0.8.x name had the target/format order flipped relative
+    /// to the standard `from_<format>_<target>` pattern. Doubly
+    /// deprecated: base64 support itself is on the way out before
+    /// oboron 1.0.
+    #[cfg(feature = "base64-keys")]
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Ob::from_base64_key (or Ob::from_hex_key — base64 is going away)"
+    )]
+    pub fn from_key_base64(format: impl IntoFormat, key_b64: &str) -> Result<Self, Error> {
+        #[allow(deprecated)]
+        Self::from_base64_key(format, key_b64)
     }
 
     /// Set the format to a new value.
@@ -257,7 +273,9 @@ impl Ob {
         })
     }
 
-    /// Create a new Ob with the specified format and hex key. Equivalent to [`Self::new`].
+    /// Create a new Ob from a format and a 128-character hex key.
+    /// Strict hex — rejects base64. Use [`Self::new`] for the
+    /// length-routing entry point that accepts both.
     ///
     /// Accepts either a format string (`&str`) or a `Format` instance.
     ///
@@ -276,7 +294,23 @@ impl Ob {
     /// # }
     /// ```
     pub fn from_hex_key(format: impl IntoFormat, key_hex: &str) -> Result<Self, Error> {
-        Self::new(format, key_hex)
+        let format = format.into_format()?;
+        Ok(Self {
+            masterkey: MasterKey::from_hex(key_hex)?,
+            format,
+        })
+    }
+
+    /// Deprecated alias for [`Self::from_hex_key`].
+    ///
+    /// Kept for migration from any in-development 0.9.x preview;
+    /// canonical pattern is `from_<format>_<target>`.
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Ob::from_hex_key instead — standard from_<format>_<target> pattern"
+    )]
+    pub fn from_key_hex(format: impl IntoFormat, key_hex: &str) -> Result<Self, Error> {
+        Self::from_hex_key(format, key_hex)
     }
 
     /// Create a new Ob from the specified format and raw key bytes.

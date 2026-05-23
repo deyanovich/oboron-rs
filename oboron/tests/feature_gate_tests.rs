@@ -44,7 +44,7 @@ mod hex_keys {
         {
             let _ = AasvC32::from_hex_key(&key);
             let _ = Ob::from_hex_key("aasv.c32", &key);
-            let _ = Omnib::from_key_hex(&key);
+            let _ = Omnib::from_hex_key(&key);
         }
     }
 

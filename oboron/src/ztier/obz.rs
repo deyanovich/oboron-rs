@@ -27,7 +27,7 @@ use super::zsecret::ZSecret;
 /// # #[cfg(feature = "zrbcx")]
 /// # {
 /// # use oboron::ztier::Obz;
-/// # let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"; // 43 chars
+/// # let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"; // 64 hex chars
 /// let obz = Obz::new("zrbcx.b64", secret)?;
 /// let ot = obz.enc("hello")?;
 /// let pt2 = obz.dec(&ot)?;
@@ -45,7 +45,7 @@ use super::zsecret::ZSecret;
 /// # {
 /// # use oboron::ztier::Obz;
 /// # use oboron::{Scheme, Encoding, Format};
-/// # let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+/// # let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 /// let mut obz = Obz::new("zrbcx.c32", secret)?;
 /// let ot1 = obz.enc("hello")?;
 ///
@@ -68,9 +68,11 @@ pub struct Obz {
 }
 
 impl Obz {
-    /// Create a new Obz with the specified format and base64 secret.
-    ///
-    /// Accepts either a format string (`&str`) or a `Format` instance.
+    /// Create a new Obz with the specified format and secret.
+    /// Length-routed: accepts either a 64-character hex secret
+    /// (canonical) or a 43-character base64 secret (transitional,
+    /// gated by the `base64-keys` feature). The `format` argument
+    /// accepts either a format string (`&str`) or a `Format` instance.
     ///
     /// # Examples
     ///
@@ -80,13 +82,12 @@ impl Obz {
     /// # {
     /// # use oboron::ztier::Obz;
     /// # use oboron::{Format, Scheme, Encoding};
-    /// # let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-    /// // Using format string
-    /// let obz1 = Obz::new("zrbcx.b64", secret)?;
+    /// let secret = oboron::generate_secret(); // 64-char hex
+    /// let obz1 = Obz::new("zrbcx.b64", &secret)?;
     ///
     /// // Using Format instance
     /// let format = Format::new(Scheme::Zrbcx, Encoding::B64);
-    /// let obz2 = Obz::new(format, secret)?;
+    /// let obz2 = Obz::new(format, &secret)?;
     /// # }
     /// # Ok(())
     /// # }
@@ -95,7 +96,7 @@ impl Obz {
         let format = format.into_format()?;
         validate_ztier_scheme(format.scheme())?;
         Ok(Self {
-            zsecret: ZSecret::from_base64(secret)?,
+            zsecret: ZSecret::from_string(secret)?,
             format,
         })
     }
@@ -110,7 +111,7 @@ impl Obz {
     /// # {
     /// # use oboron::ztier::Obz;
     /// # use oboron::{Scheme, Encoding};
-    /// # let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    /// # let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     /// let obz = Obz::new("zrbcx.b64", secret)?;
     /// let format = obz.format();
     /// assert_eq!(format.scheme(), Scheme::Zrbcx);
@@ -135,7 +136,7 @@ impl Obz {
     /// # {
     /// # use oboron::ztier::Obz;
     /// # use oboron::{Format, Scheme, Encoding};
-    /// # let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    /// # let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     /// let mut obz = Obz::new("zrbcx.c32", secret)?;
     /// obz.set_format("legacy")?; // switch using string
     /// obz.set_format(Format::new(Scheme::Zrbcx, Encoding::Hex))?; // switch using Format
@@ -160,7 +161,7 @@ impl Obz {
     /// # {
     /// # use oboron::ztier::Obz;
     /// # use oboron::Scheme;
-    /// # let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    /// # let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     /// let mut obz = Obz::new("zrbcx.c32", secret)?;
     /// obz.set_scheme(Scheme::Legacy)?; // switch to legacy, keeping c32 encoding
     /// # }
@@ -183,7 +184,7 @@ impl Obz {
     /// # {
     /// # use oboron::ztier::Obz;
     /// # use oboron::Encoding;
-    /// # let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    /// # let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     /// let mut obz = Obz::new("zrbcx.c32", secret)?;
     /// obz.set_encoding(Encoding::B64)?; // switch to b64, keeping zrbcx scheme
     /// # }
@@ -207,7 +208,7 @@ impl Obz {
     /// # #[cfg(all(feature = "zrbcx"))]
     /// # {
     /// # use oboron::ztier::Obz;
-    /// # let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    /// # let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     /// let mut obz = Obz::new("zrbcx.b64", secret)?;
     /// let ot = obz.enc("test")?;
     /// let pt2 = obz.autodec(&ot)?;
@@ -261,7 +262,9 @@ impl Obz {
         })
     }
 
-    /// Create a new Obz with the specified format and hex secret.
+    /// Create a new Obz with the specified format and a 64-character
+    /// hex secret. Strict hex — rejects base64. Use [`Self::new`]
+    /// for the length-routing entry point that accepts both.
     ///
     /// Accepts either a format string (`&str`) or a `Format` instance.
     ///
@@ -273,24 +276,134 @@ impl Obz {
     /// # {
     /// # use oboron::ztier::Obz;
     /// # use oboron::{Format, Scheme, Encoding};
-    /// let secret_hex = "0". repeat(64); // 32 bytes as hex
-    /// // Using format string
-    /// let obz1 = Obz::from_hex_key("zrbcx.b64", &secret_hex)?;
+    /// let secret_hex = "0".repeat(64); // 32 bytes as hex
+    /// let obz1 = Obz::from_hex_secret("zrbcx.b64", &secret_hex)?;
     ///
-    /// // Using Format instance
     /// let format = Format::new(Scheme::Zrbcx, Encoding::B64);
-    /// let obz2 = Obz::from_hex_key(format, &secret_hex)?;
+    /// let obz2 = Obz::from_hex_secret(format, &secret_hex)?;
     /// # }
     /// # Ok(())
     /// # }
     /// ```
-    pub fn from_hex_key(format: impl IntoFormat, secret_hex: &str) -> Result<Self, Error> {
+    pub fn from_hex_secret(format: impl IntoFormat, secret_hex: &str) -> Result<Self, Error> {
         let format = format.into_format()?;
         validate_ztier_scheme(format.scheme())?;
         Ok(Self {
             zsecret: ZSecret::from_hex(secret_hex)?,
             format,
         })
+    }
+
+    /// Deprecated alias for [`Self::from_hex_secret`].
+    ///
+    /// Kept for migration from any in-development 0.9.x preview;
+    /// canonical pattern is `from_<format>_<target>`.
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Obz::from_hex_secret instead — standard from_<format>_<target> pattern"
+    )]
+    pub fn from_secret_hex(format: impl IntoFormat, secret_hex: &str) -> Result<Self, Error> {
+        Self::from_hex_secret(format, secret_hex)
+    }
+
+    /// Deprecated alias for [`Self::from_hex_secret`].
+    ///
+    /// The 0.8.x name leaked the a/u-tier "key" terminology into the
+    /// z-tier API where the field is named "secret"; renamed in
+    /// 0.9.0 for consistency.
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Obz::from_hex_secret instead — the z-tier field is `secret`, not `key`"
+    )]
+    pub fn from_hex_key(format: impl IntoFormat, secret_hex: &str) -> Result<Self, Error> {
+        Self::from_hex_secret(format, secret_hex)
+    }
+
+    /// Deprecated alias for [`Self::from_hex_secret`].
+    ///
+    /// The 0.8.x name leaked the a/u-tier "key" terminology into the
+    /// z-tier API where the field is named "secret". This particular
+    /// spelling never shipped as canonical but is provided for any
+    /// migrating caller who reached for the a/u-tier word order.
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Obz::from_hex_secret instead — the z-tier field is `secret`, not `key`"
+    )]
+    pub fn from_key_hex(format: impl IntoFormat, secret_hex: &str) -> Result<Self, Error> {
+        Self::from_hex_secret(format, secret_hex)
+    }
+
+    /// Create a new Obz from a 43-character base64 secret string.
+    ///
+    /// Deprecated: hex is canonical; this constructor will be removed
+    /// when the `base64-keys` gate goes away before oboron 1.0.
+    #[cfg(feature = "base64-keys")]
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Obz::from_hex_secret() / new() (hex) instead; base64 support will be removed before oboron 1.0"
+    )]
+    pub fn from_base64_secret(
+        format: impl IntoFormat,
+        secret_base64: &str,
+    ) -> Result<Self, Error> {
+        let format = format.into_format()?;
+        validate_ztier_scheme(format.scheme())?;
+        Ok(Self {
+            zsecret: ZSecret::from_base64(secret_base64)?,
+            format,
+        })
+    }
+
+    /// Deprecated alias for [`Self::from_base64_secret`].
+    ///
+    /// The in-development 0.9.x preview used the target/format
+    /// order; canonical is `from_<format>_<target>`. Doubly
+    /// deprecated: base64 support itself is on the way out.
+    #[cfg(feature = "base64-keys")]
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Obz::from_base64_secret (or from_hex_secret — base64 is going away)"
+    )]
+    pub fn from_secret_base64(
+        format: impl IntoFormat,
+        secret_base64: &str,
+    ) -> Result<Self, Error> {
+        #[allow(deprecated)]
+        Self::from_base64_secret(format, secret_base64)
+    }
+
+    /// Deprecated alias for [`Self::from_base64_secret`].
+    ///
+    /// The 0.8.x convention leaked the a/u-tier "key" word into a
+    /// z-tier method. Provided for any caller who reached for it.
+    #[cfg(feature = "base64-keys")]
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Obz::from_base64_secret instead — the z-tier field is `secret`, not `key`"
+    )]
+    pub fn from_base64_key(
+        format: impl IntoFormat,
+        secret_base64: &str,
+    ) -> Result<Self, Error> {
+        #[allow(deprecated)]
+        Self::from_base64_secret(format, secret_base64)
+    }
+
+    /// Deprecated alias for [`Self::from_base64_secret`].
+    ///
+    /// The 0.8.x convention leaked the a/u-tier "key" word into a
+    /// z-tier method. Provided for any caller who reached for it.
+    #[cfg(feature = "base64-keys")]
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Obz::from_base64_secret instead — the z-tier field is `secret`, not `key`"
+    )]
+    pub fn from_key_base64(
+        format: impl IntoFormat,
+        secret_base64: &str,
+    ) -> Result<Self, Error> {
+        #[allow(deprecated)]
+        Self::from_base64_secret(format, secret_base64)
     }
 
     /// Create a new Obz from the specified format and raw secret bytes.
@@ -322,19 +435,30 @@ impl Obz {
         })
     }
 
-    /// Get the secret as base64 (z-tier specific, 32 bytes)
+    /// The 64-character hex secret bound to this codec (canonical
+    /// oboron form).
     #[inline]
     pub fn secret(&self) -> String {
-        self.zsecret.secret_base64()
+        self.zsecret.secret_hex()
     }
 
-    /// Get the secret as hex (z-tier specific, 32 bytes)
+    /// The secret as a 64-character hex string (alias for `secret`).
     #[inline]
     pub fn secret_hex(&self) -> String {
         self.zsecret.secret_hex()
     }
 
-    /// Get the secret as bytes (z-tier specific, 32 bytes)
+    /// The secret as a 43-character base64 string.
+    ///
+    /// Deprecated: hex is canonical; this getter will be removed
+    /// when the `base64-keys` gate goes away before oboron 1.0.
+    #[cfg(feature = "base64-keys")]
+    #[inline]
+    pub fn secret_base64(&self) -> String {
+        self.zsecret.secret_base64()
+    }
+
+    /// The raw 32-byte secret material.
     #[inline]
     pub fn secret_bytes(&self) -> &[u8; 32] {
         self.zsecret.secret_bytes()
@@ -422,7 +546,7 @@ mod tests {
     #[test]
     #[cfg(feature = "zrbcx")]
     fn test_obz_basic() {
-        let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"; // 43 chars
+        let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"; // 64 hex chars
         let obz = Obz::new("zrbcx.b64", secret).unwrap();
 
         let plaintext = "hello world";
@@ -435,7 +559,7 @@ mod tests {
     #[test]
     #[cfg(feature = "zrbcx")]
     fn test_obz_format_switching() {
-        let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
         let mut obz = Obz::new("zrbcx.c32", secret).unwrap();
 
         assert_eq!(obz.encoding(), Encoding::C32);
@@ -447,7 +571,7 @@ mod tests {
     #[test]
     #[cfg(all(feature = "zrbcx", feature = "legacy"))]
     fn test_obz_scheme_switching() {
-        let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
         let mut obz = Obz::new("zrbcx.b64", secret).unwrap();
 
         assert_eq!(obz.scheme(), Scheme::Zrbcx);
@@ -459,7 +583,7 @@ mod tests {
     #[test]
     #[cfg(feature = "zrbcx")]
     fn test_obz_rejects_non_ztier_scheme() {
-        let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
 
         #[cfg(feature = "aasv")]
         {

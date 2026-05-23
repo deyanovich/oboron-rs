@@ -1,7 +1,6 @@
 #![cfg(feature = "legacy")]
 
 use oboron::ztier::{Legacy, Obz};
-use oboron::ObtextCodec;
 use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
@@ -27,9 +26,9 @@ struct MetaEntry {
 /// The first line of the JSONL is a metadata entry containing the secret.
 fn load_test_vectors() -> (Option<String>, Vec<TestVector>) {
     let possible_paths = vec![
-        PathBuf::from("tests/legacy-test-vectors.jsonl"),
-        PathBuf::from("oboron/tests/legacy-test-vectors.jsonl"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/legacy-test-vectors.jsonl"),
+        PathBuf::from("tests/vectors/legacy-test-vectors.jsonl"),
+        PathBuf::from("oboron/tests/vectors/legacy-test-vectors.jsonl"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/legacy-test-vectors.jsonl"),
     ];
 
     for path in &possible_paths {

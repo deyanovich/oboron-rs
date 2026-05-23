@@ -58,7 +58,7 @@ macro_rules! impl_codec_32 {
             /// The key format is auto-detected by length: 128 chars →
             /// hex (canonical), 86 chars → base64 (deprecated; behind
             /// the `base64-keys` feature). For format-explicit
-            /// constructors see `from_hex_key` / `from_key_base64`;
+            /// constructors see `from_hex_key` / `from_base64_key`;
             /// for raw bytes use `from_bytes`.
             ///
             /// The base64 path is transitional and will be removed
@@ -88,27 +88,65 @@ macro_rules! impl_codec_32 {
                 })
             }
 
-            /// Create a new instance from a hex key. Equivalent to [`Self::new`].
+            /// Create a new instance from a 128-character hex key.
+            /// Strict hex — rejects base64. Use [`Self::new`] for the
+            /// length-routing entry point that accepts both.
             #[inline]
             pub fn from_hex_key(key_hex: &str) -> Result<Self, Error> {
-                Self::new(key_hex)
+                Ok(Self {
+                    masterkey: MasterKey::from_hex(key_hex)?,
+                })
             }
 
-            /// Create a new instance from a base64 key.
+            /// Deprecated alias for [`Self::from_hex_key`].
+            ///
+            /// The 0.8.x `Omnib` used `from_key_hex`; this alias is
+            /// kept for migration. Canonical form is
+            /// `from_<format>_<target>` (e.g. `from_hex_key`,
+            /// `from_base64_secret`).
+            #[inline]
+            #[deprecated(
+                since = "0.9.0",
+                note = "use from_hex_key instead — standard from_<format>_<target> pattern"
+            )]
+            pub fn from_key_hex(key_hex: &str) -> Result<Self, Error> {
+                Self::from_hex_key(key_hex)
+            }
+
+            /// Create a new instance from a 86-character base64 key.
+            /// Strict base64 — rejects hex.
             ///
             /// Deprecated: oboron is moving to hex-only keys before
-            /// v1.0. Use [`Self::new`] (hex) instead.
+            /// v1.0. Use [`Self::from_hex_key`] (hex) instead.
             #[inline]
             #[cfg(feature = "base64-keys")]
             #[deprecated(
                 since = "0.7.1",
-                note = "use new() (hex) instead; base64 key support will be removed before oboron 1.0"
+                note = "use from_hex_key() / new() (hex) instead; base64 key support will be removed before oboron 1.0"
             )]
-            pub fn from_key_base64(key_b64: &str) -> Result<Self, Error> {
+            pub fn from_base64_key(key_b64: &str) -> Result<Self, Error> {
                 Ok(Self {
                     #[allow(deprecated)]
                     masterkey: MasterKey::from_base64(key_b64)?,
                 })
+            }
+
+            /// Deprecated alias for [`Self::from_base64_key`].
+            ///
+            /// The 0.8.x name had the target/format order flipped
+            /// relative to the standard `from_<format>_<target>`
+            /// pattern; renamed in 0.9.0 for consistency. Doubly
+            /// deprecated: base64 support itself is on the way out
+            /// before oboron 1.0.
+            #[inline]
+            #[cfg(feature = "base64-keys")]
+            #[deprecated(
+                since = "0.9.0",
+                note = "use from_base64_key (or from_hex_key — base64 is going away)"
+            )]
+            pub fn from_key_base64(key_b64: &str) -> Result<Self, Error> {
+                #[allow(deprecated)]
+                Self::from_base64_key(key_b64)
             }
 
             /// Create a new instance from a 64-byte key.
@@ -283,7 +321,7 @@ macro_rules! impl_codec_64 {
             /// The key format is auto-detected by length: 128 chars →
             /// hex (canonical), 86 chars → base64 (deprecated; behind
             /// the `base64-keys` feature). For format-explicit
-            /// constructors see `from_hex_key` / `from_key_base64`;
+            /// constructors see `from_hex_key` / `from_base64_key`;
             /// for raw bytes use `from_bytes`.
             ///
             /// The base64 path is transitional and will be removed
@@ -313,27 +351,65 @@ macro_rules! impl_codec_64 {
                 })
             }
 
-            /// Create a new instance from a hex key. Equivalent to [`Self::new`].
+            /// Create a new instance from a 128-character hex key.
+            /// Strict hex — rejects base64. Use [`Self::new`] for the
+            /// length-routing entry point that accepts both.
             #[inline]
             pub fn from_hex_key(key_hex: &str) -> Result<Self, Error> {
-                Self::new(key_hex)
+                Ok(Self {
+                    masterkey: MasterKey::from_hex(key_hex)?,
+                })
             }
 
-            /// Create a new instance from a base64 key.
+            /// Deprecated alias for [`Self::from_hex_key`].
+            ///
+            /// The 0.8.x `Omnib` used `from_key_hex`; this alias is
+            /// kept for migration. Canonical form is
+            /// `from_<format>_<target>` (e.g. `from_hex_key`,
+            /// `from_base64_secret`).
+            #[inline]
+            #[deprecated(
+                since = "0.9.0",
+                note = "use from_hex_key instead — standard from_<format>_<target> pattern"
+            )]
+            pub fn from_key_hex(key_hex: &str) -> Result<Self, Error> {
+                Self::from_hex_key(key_hex)
+            }
+
+            /// Create a new instance from a 86-character base64 key.
+            /// Strict base64 — rejects hex.
             ///
             /// Deprecated: oboron is moving to hex-only keys before
-            /// v1.0. Use [`Self::new`] (hex) instead.
+            /// v1.0. Use [`Self::from_hex_key`] (hex) instead.
             #[inline]
             #[cfg(feature = "base64-keys")]
             #[deprecated(
                 since = "0.7.1",
-                note = "use new() (hex) instead; base64 key support will be removed before oboron 1.0"
+                note = "use from_hex_key() / new() (hex) instead; base64 key support will be removed before oboron 1.0"
             )]
-            pub fn from_key_base64(key_b64: &str) -> Result<Self, Error> {
+            pub fn from_base64_key(key_b64: &str) -> Result<Self, Error> {
                 Ok(Self {
                     #[allow(deprecated)]
                     masterkey: MasterKey::from_base64(key_b64)?,
                 })
+            }
+
+            /// Deprecated alias for [`Self::from_base64_key`].
+            ///
+            /// The 0.8.x name had the target/format order flipped
+            /// relative to the standard `from_<format>_<target>`
+            /// pattern; renamed in 0.9.0 for consistency. Doubly
+            /// deprecated: base64 support itself is on the way out
+            /// before oboron 1.0.
+            #[inline]
+            #[cfg(feature = "base64-keys")]
+            #[deprecated(
+                since = "0.9.0",
+                note = "use from_base64_key (or from_hex_key — base64 is going away)"
+            )]
+            pub fn from_key_base64(key_b64: &str) -> Result<Self, Error> {
+                #[allow(deprecated)]
+                Self::from_base64_key(key_b64)
             }
 
             /// Create a new instance from a 64-byte key.
@@ -1356,15 +1432,36 @@ fn from_hex_key_with_format_internal(format: Format, key_hex: &str) -> Result<Ob
     from_bytes_with_format_internal(format, &key_arr)
 }
 
-/// Create an encoder from a format string and a hex key.
+/// Create an encoder from a format string and a 128-character hex key.
 pub fn from_hex_key(fmt: &str, key_hex: &str) -> Result<ObAny, Error> {
     let format = Format::from_str(fmt)?;
     from_hex_key_with_format_internal(format, key_hex)
 }
 
-/// Create an encoder from a pre-parsed Format and a hex key.
+/// Create an encoder from a pre-parsed Format and a 128-character hex key.
 pub fn from_hex_key_with_format(format: Format, key_hex: &str) -> Result<ObAny, Error> {
     from_hex_key_with_format_internal(format, key_hex)
+}
+
+/// Deprecated alias for [`from_hex_key`].
+///
+/// Kept for migration from any in-development 0.9.x preview;
+/// canonical pattern is `from_<format>_<target>`.
+#[deprecated(
+    since = "0.9.0",
+    note = "use from_hex_key instead — standard from_<format>_<target> pattern"
+)]
+pub fn from_key_hex(fmt: &str, key_hex: &str) -> Result<ObAny, Error> {
+    from_hex_key(fmt, key_hex)
+}
+
+/// Deprecated alias for [`from_hex_key_with_format`].
+#[deprecated(
+    since = "0.9.0",
+    note = "use from_hex_key_with_format instead — standard from_<format>_<target> pattern"
+)]
+pub fn from_key_hex_with_format(format: Format, key_hex: &str) -> Result<ObAny, Error> {
+    from_hex_key_with_format(format, key_hex)
 }
 
 /// Create an encoder from a format string and raw bytes.

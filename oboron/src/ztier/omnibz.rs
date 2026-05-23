@@ -29,7 +29,7 @@ use super::zsecret::ZSecret;
 /// # #[cfg(all(feature = "zrbcx", feature = "mock"))]
 /// # {
 /// # use oboron::ztier::Omnibz;
-/// let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"; // 43 chars
+/// let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"; // 64 hex chars
 /// let omz = Omnibz::new(secret)?;
 ///
 /// // Encode with explicit format
@@ -59,15 +59,15 @@ impl Omnibz {
     /// # #[cfg(feature = "zrbcx")]
     /// # {
     /// # use oboron::ztier::Omnibz;
-    /// let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"; // 43 chars
+    /// let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"; // 64 hex chars
     /// let omz = Omnibz::new(secret)?;
     /// # }
     /// # Ok(())
     /// # }
     /// ```
-    pub fn new(secret_b64: &str) -> Result<Self, Error> {
+    pub fn new(secret: &str) -> Result<Self, Error> {
         Ok(Self {
-            zsecret: ZSecret::from_base64(secret_b64)?,
+            zsecret: ZSecret::from_string(secret)?,
         })
     }
 
@@ -105,7 +105,7 @@ impl Omnibz {
     /// # {
     /// # use oboron::ztier::Omnibz;
     /// # use oboron::{Format, Scheme, Encoding};
-    /// let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    /// let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     /// let omz = Omnibz::new(secret)?;
     ///
     /// // Using format string
@@ -137,7 +137,7 @@ impl Omnibz {
     /// # {
     /// # use oboron::ztier::Omnibz;
     /// # use oboron::{Format, Scheme, Encoding};
-    /// let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    /// let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     /// let omz = Omnibz::new(secret)?;
     /// let ot = omz.enc("test", "zrbcx.b64")?;
     ///
@@ -170,7 +170,7 @@ impl Omnibz {
     /// # #[cfg(feature = "zrbcx")]
     /// # {
     /// # use oboron::ztier::Omnibz;
-    /// let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    /// let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
     /// let omz = Omnibz::new(secret)?;
     /// let ot = omz.enc("hello", "zrbcx.b64")?;
     /// let pt2 = omz.autodec(&ot)?;  // Autodetects zrbcx.b64
@@ -183,7 +183,8 @@ impl Omnibz {
         zdec_auto::dec_any_format_ztier(&self.zsecret, obtext)
     }
 
-    /// Get the secret used by this instance (base64 format, 43 chars).
+    /// The 64-character hex secret bound to this Omnibz (canonical
+    /// oboron form).
     ///
     /// # Examples
     ///
@@ -192,64 +193,43 @@ impl Omnibz {
     /// # #[cfg(feature = "zrbcx")]
     /// # {
     /// # use oboron::ztier::Omnibz;
-    /// let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-    /// let omz = Omnibz::new(secret)?;
+    /// let secret = oboron::generate_secret(); // 64-char hex
+    /// let omz = Omnibz::new(&secret)?;
     /// let retrieved = omz.secret();
     /// assert_eq!(retrieved, secret);
-    /// assert_eq!(retrieved.len(), 43);
+    /// assert_eq!(retrieved.len(), 64);
     /// # }
     /// # Ok(())
     /// # }
     /// ```
     pub fn secret(&self) -> String {
-        self.zsecret.secret_base64()
+        self.zsecret.secret_hex()
     }
 
-    /// Get the secret as hex (64 chars).
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "zrbcx")]
-    /// # {
-    /// # use oboron::ztier::Omnibz;
-    /// let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-    /// let omz = Omnibz::new(secret)?;
-    /// let secret_hex = omz.secret_hex();
-    /// assert_eq!(secret_hex.len(), 64); // 32 bytes = 64 hex chars
-    /// # }
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// The secret as a 64-character hex string (alias for `secret`).
     pub fn secret_hex(&self) -> String {
         self.zsecret.secret_hex()
     }
 
-    /// Get the secret as raw bytes (32 bytes).
+    /// The secret as a 43-character base64 string.
     ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "zrbcx")]
-    /// # {
-    /// # use oboron::ztier::Omnibz;
-    /// let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-    /// let omz = Omnibz::new(secret)?;
-    /// let secret_bytes = omz.secret_bytes();
-    /// assert_eq!(secret_bytes.len(), 32);
-    /// # }
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// Deprecated: hex is canonical; this getter will be removed
+    /// when the `base64-keys` gate goes away before oboron 1.0.
+    #[cfg(feature = "base64-keys")]
+    pub fn secret_base64(&self) -> String {
+        self.zsecret.secret_base64()
+    }
+
+    /// The raw 32-byte secret material.
     pub fn secret_bytes(&self) -> &[u8; 32] {
         self.zsecret.secret_bytes()
     }
 
     // Alt input constructors ==========================================
 
-    /// Create a new Omnibz instance with a hex secret (64 chars).
+    /// Create a new Omnibz instance from a 64-character hex secret.
+    /// Strict hex — rejects base64. Use [`Self::new`] for the
+    /// length-routing entry point that accepts both.
     ///
     /// # Examples
     ///
@@ -259,15 +239,29 @@ impl Omnibz {
     /// # {
     /// # use oboron::ztier::Omnibz;
     /// let secret_hex = "0".repeat(64); // 32 bytes as hex
-    /// let omz = Omnibz::from_secret_hex(&secret_hex)?;
+    /// let omz = Omnibz::from_hex_secret(&secret_hex)?;
     /// # }
     /// # Ok(())
     /// # }
     /// ```
-    pub fn from_secret_hex(secret_hex: &str) -> Result<Self, Error> {
+    pub fn from_hex_secret(secret_hex: &str) -> Result<Self, Error> {
         Ok(Self {
             zsecret: ZSecret::from_hex(secret_hex)?,
         })
+    }
+
+    /// Deprecated alias for [`Self::from_hex_secret`].
+    ///
+    /// The 0.8.x name had the target/format order flipped relative
+    /// to the standard `from_<format>_<target>` pattern (e.g.
+    /// `from_hex_key`, `from_base64_secret`); renamed in 0.9.0
+    /// for consistency.
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Omnibz::from_hex_secret instead — standard from_<format>_<target> pattern"
+    )]
+    pub fn from_secret_hex(secret_hex: &str) -> Result<Self, Error> {
+        Self::from_hex_secret(secret_hex)
     }
 
     /// Create a new Omnibz instance from raw secret bytes (32 bytes).
@@ -289,6 +283,38 @@ impl Omnibz {
         Ok(Self {
             zsecret: ZSecret::from_bytes(secret_bytes)?,
         })
+    }
+
+    /// Create a new Omnibz instance from a 43-character base64
+    /// secret string.
+    ///
+    /// Deprecated: hex is canonical; this constructor will be
+    /// removed when the `base64-keys` gate goes away before
+    /// oboron 1.0.
+    #[cfg(feature = "base64-keys")]
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Omnibz::from_hex_secret() / new() (hex) instead; base64 support will be removed before oboron 1.0"
+    )]
+    pub fn from_base64_secret(secret_base64: &str) -> Result<Self, Error> {
+        Ok(Self {
+            zsecret: ZSecret::from_base64(secret_base64)?,
+        })
+    }
+
+    /// Deprecated alias for [`Self::from_base64_secret`].
+    ///
+    /// The in-development 0.9.x preview used the target/format
+    /// order; canonical is `from_<format>_<target>`. Doubly
+    /// deprecated: base64 support itself is on the way out.
+    #[cfg(feature = "base64-keys")]
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Omnibz::from_base64_secret (or from_hex_secret — base64 is going away)"
+    )]
+    pub fn from_secret_base64(secret_base64: &str) -> Result<Self, Error> {
+        #[allow(deprecated)]
+        Self::from_base64_secret(secret_base64)
     }
 }
 
@@ -312,7 +338,7 @@ mod tests {
     #[test]
     #[cfg(feature = "zrbcx")]
     fn test_omnibz_basic() {
-        let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"; // 43 chars
+        let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"; // 64 hex chars
         let omz = Omnibz::new(secret).unwrap();
 
         let plaintext = "hello world";
@@ -325,7 +351,7 @@ mod tests {
     #[test]
     #[cfg(feature = "zrbcx")]
     fn test_omnibz_autodec() {
-        let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
         let omz = Omnibz::new(secret).unwrap();
 
         let plaintext = "test data";
@@ -338,7 +364,7 @@ mod tests {
     #[test]
     #[cfg(all(feature = "zrbcx", feature = "mock"))]
     fn test_omnibz_multiple_formats() {
-        let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
         let omz = Omnibz::new(secret).unwrap();
 
         let plaintext = "multi format test";
@@ -356,18 +382,31 @@ mod tests {
     #[test]
     #[cfg(feature = "zrbcx")]
     fn test_omnibz_secret_methods() {
-        let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-        let omz = Omnibz::new(secret).unwrap();
+        let secret_hex = "0".repeat(64);
+        let omz = Omnibz::new(&secret_hex).unwrap();
 
+        // `secret()` is canonical hex in 0.9.0.
         let retrieved = omz.secret();
-        assert_eq!(retrieved, secret);
-        assert_eq!(retrieved.len(), 43);
+        assert_eq!(retrieved, secret_hex);
+        assert_eq!(retrieved.len(), 64);
 
-        let secret_hex = omz.secret_hex();
-        assert_eq!(secret_hex.len(), 64);
+        // `secret_hex()` is the alias.
+        assert_eq!(omz.secret_hex().len(), 64);
 
         let secret_bytes = omz.secret_bytes();
         assert_eq!(secret_bytes.len(), 32);
+    }
+
+    #[test]
+    #[cfg(all(feature = "zrbcx", feature = "base64-keys"))]
+    fn test_omnibz_secret_base64_passthrough() {
+        // `new()` length-routes — 43-char base64 still works as a
+        // transitional input. `secret_base64()` round-trips it.
+        let secret_b64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"; // 43 chars
+        let omz = Omnibz::new(secret_b64).unwrap();
+
+        assert_eq!(omz.secret_base64(), secret_b64);
+        assert_eq!(omz.secret().len(), 64); // hex
     }
 
     #[test]
@@ -384,9 +423,9 @@ mod tests {
 
     #[test]
     #[cfg(feature = "zrbcx")]
-    fn test_omnibz_from_hex() {
+    fn test_omnibz_from_hex_secret() {
         let secret_hex = "0".repeat(64);
-        let omz = Omnibz::from_secret_hex(&secret_hex).unwrap();
+        let omz = Omnibz::from_hex_secret(&secret_hex).unwrap();
 
         let plaintext = "hex secret test";
         let ot = omz.enc(plaintext, "zrbcx.b64").unwrap();
@@ -411,7 +450,7 @@ mod tests {
     #[test]
     #[cfg(feature = "zrbcx")]
     fn test_omnibz_rejects_non_ztier_scheme() {
-        let secret = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        let secret = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff";
         let omz = Omnibz::new(secret).unwrap();
 
         #[cfg(feature = "aasv")]

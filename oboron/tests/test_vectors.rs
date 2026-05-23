@@ -15,9 +15,9 @@ struct TestVector {
 
 fn load_test_vectors() -> Vec<TestVector> {
     let possible_paths = vec![
-        PathBuf::from("tests/test-vectors.jsonl"),
-        PathBuf::from("oboron/tests/test-vectors.jsonl"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/test-vectors.jsonl"),
+        PathBuf::from("tests/vectors/test-vectors.jsonl"),
+        PathBuf::from("oboron/tests/vectors/test-vectors.jsonl"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/test-vectors.jsonl"),
     ];
 
     for path in &possible_paths {

@@ -56,9 +56,9 @@ Key Advantages:
 Add to your `Cargo.toml`:
 ```toml
 [dependencies]
-oboron = "0.8" # default features
+oboron = "0.9" # default features
 # or with minimal features:
-# oboron = { version = "0.8", features = ["aasv", "apsv"] }
+# oboron = { version = "0.9", features = ["aasv", "apsv"] }
 ```
 
 Generate your 512-bit key (128 hex characters) using the keygen script
@@ -164,7 +164,11 @@ into *tiers*:
 - **`z` - Obfuscation tier**
   - *Not cryptographically secure* - for non-security use only
   - Example: `ob:zrbcx` - deterministic obfuscation with constant IV
-  - Requires explicit `ztier` feature flag (not enabled by default)
+  - Requires explicit `zrbcx` (or `legacy`) feature flag (not in
+    `default`)
+  - Z-tier uses a 32-byte **secret** instead of the 64-byte master
+    key; constructors are named `from_<format>_secret` (e.g.
+    `ZrbcxC32::from_hex_secret`, `Obz::from_base64_secret`)
   - See [Z_TIER.md](Z_TIER.md) for details and warnings
 
 #### Scheme Properties
@@ -604,13 +608,13 @@ Examples:
 
 ```toml
 # Minimal: only aasv (deterministic AES-SIV).
-oboron = { version = "0.8", default-features = false, features = ["aasv"] }
+oboron = { version = "0.9", default-features = false, features = ["aasv"] }
 
 # Both SIV schemes.
-oboron = { version = "0.8", default-features = false, features = ["aasv", "apsv"] }
+oboron = { version = "0.9", default-features = false, features = ["aasv", "apsv"] }
 
 # Default behavior but without the deprecated base64 keys.
-oboron = { version = "0.8", default-features = false, features = ["secure-schemes"] }
+oboron = { version = "0.9", default-features = false, features = ["secure-schemes"] }
 ```
 
 At least one scheme feature must be enabled — building with no
@@ -775,8 +779,13 @@ Oboron implementations maintain full cross-language compatibility:
 - Interoperable encoded values across Rust, Python, and Go (latter
   currently under development)
 
-All implementations must pass the common
-[test vectors](tests/test-vectors.jsonl)
+All implementations must pass the common test vectors, which live
+in a dedicated repo:
+[`oboron-test-vectors`](https://gitlab.com/oboron/oboron-test-vectors).
+This crate consumes them via a git submodule mounted at
+`oboron/tests/vectors/` — clone with `--recurse-submodules` (or
+run `git submodule update --init` afterwards) before
+`cargo test --workspace`.
 
 ## Related Crates
 

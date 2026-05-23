@@ -20,10 +20,13 @@ macro_rules! impl_zcodec {
         }
 
         impl $name {
-            /// Create with a 43-character base64 secret string
+            /// Create from a secret string. Length-routed: accepts
+            /// either a 64-character hex secret (canonical) or a
+            /// 43-character base64 secret (transitional, gated by
+            /// the `base64-keys` feature).
             pub fn new(secret: &str) -> Result<Self, Error> {
                 Ok(Self {
-                    zsecret: ZSecret::from_base64(secret)?,
+                    zsecret: ZSecret::from_string(secret)?,
                 })
             }
 
@@ -35,28 +38,91 @@ macro_rules! impl_zcodec {
                 })
             }
 
-            /// Create from a 64-character hex secret string
+            /// Create from a 64-character hex secret string. Strict
+            /// hex — rejects base64. Use [`Self::new`] for the
+            /// length-routing entry point that accepts both.
             pub fn from_hex_secret(secret_hex: &str) -> Result<Self, Error> {
                 Ok(Self {
                     zsecret: ZSecret::from_hex(secret_hex)?,
                 })
             }
 
-            /// Create from a 32-byte secret
+            /// Deprecated alias for [`Self::from_hex_secret`].
+            ///
+            /// Kept for migration from any in-development 0.9.x
+            /// preview; canonical pattern is
+            /// `from_<format>_<target>` (e.g. `from_hex_key`,
+            /// `from_base64_secret`).
+            #[deprecated(
+                since = "0.9.0",
+                note = "use from_hex_secret instead — standard from_<format>_<target> pattern"
+            )]
+            pub fn from_secret_hex(secret_hex: &str) -> Result<Self, Error> {
+                Self::from_hex_secret(secret_hex)
+            }
+
+            /// Create from a 43-character base64 secret string.
+            ///
+            /// Deprecated: oboron is moving to hex-only secrets before
+            /// v1.0. Use [`Self::from_hex_secret`] or [`Self::new`]
+            /// (with a hex secret) instead.
+            #[cfg(feature = "base64-keys")]
+            #[deprecated(
+                since = "0.9.0",
+                note = "use from_hex_secret() / new() (hex) instead; base64 support will be removed before oboron 1.0"
+            )]
+            pub fn from_base64_secret(secret_base64: &str) -> Result<Self, Error> {
+                Ok(Self {
+                    zsecret: ZSecret::from_base64(secret_base64)?,
+                })
+            }
+
+            /// Deprecated alias for [`Self::from_base64_secret`].
+            ///
+            /// The in-development 0.9.x preview used the
+            /// target/format order; canonical pattern is
+            /// `from_<format>_<target>`. Doubly deprecated: base64
+            /// support itself is on the way out before oboron 1.0.
+            #[cfg(feature = "base64-keys")]
+            #[deprecated(
+                since = "0.9.0",
+                note = "use from_base64_secret (or from_hex_secret — base64 is going away)"
+            )]
+            pub fn from_secret_base64(secret_base64: &str) -> Result<Self, Error> {
+                #[allow(deprecated)]
+                Self::from_base64_secret(secret_base64)
+            }
+
+            /// Create from a 32-byte secret.
             pub fn from_bytes(secret_bytes: &[u8; 32]) -> Result<Self, Error> {
                 Ok(Self {
                     zsecret: ZSecret::from_bytes(secret_bytes)?,
                 })
             }
 
+            /// The 64-character hex secret bound to this codec
+            /// (canonical oboron form).
             #[inline]
             pub fn secret(&self) -> String {
-                self.zsecret.secret_base64()
+                self.zsecret.secret_hex()
             }
 
+            /// The secret as a 64-character hex string (alias for
+            /// [`Self::secret`]).
             #[inline]
             pub fn secret_hex(&self) -> String {
                 self.zsecret.secret_hex()
+            }
+
+            /// The secret as a 43-character base64 string.
+            ///
+            /// Deprecated: hex is canonical; this getter will be
+            /// removed when the `base64-keys` gate goes away before
+            /// oboron 1.0.
+            #[cfg(feature = "base64-keys")]
+            #[inline]
+            pub fn secret_base64(&self) -> String {
+                self.zsecret.secret_base64()
             }
 
             #[inline]

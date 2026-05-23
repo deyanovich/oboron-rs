@@ -167,25 +167,60 @@ impl Omnib {
 
     // Alt input constructors ==========================================
 
-    /// Create a new `Omnib` instance from a hex key. Equivalent to [`Self::new`].
-    pub fn from_key_hex(key_hex: &str) -> Result<Self, Error> {
-        Self::new(key_hex)
+    /// Create a new `Omnib` instance from a 128-character hex key.
+    /// Strict hex — rejects base64. Use [`Self::new`] for the
+    /// length-routing entry point that accepts both.
+    pub fn from_hex_key(key_hex: &str) -> Result<Self, Error> {
+        Ok(Self {
+            masterkey: MasterKey::from_hex(key_hex)?,
+        })
     }
 
-    /// Create a new `Omnib` instance from a base64 key.
+    /// Deprecated alias for [`Self::from_hex_key`].
+    ///
+    /// The 0.8.x name had the target/format order flipped relative
+    /// to the standard `from_<format>_<target>` pattern (e.g.
+    /// `from_hex_key`, `from_base64_secret`); renamed in 0.9.0 for
+    /// consistency.
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Omnib::from_hex_key instead — standard from_<format>_<target> pattern"
+    )]
+    pub fn from_key_hex(key_hex: &str) -> Result<Self, Error> {
+        Self::from_hex_key(key_hex)
+    }
+
+    /// Create a new `Omnib` instance from a 86-character base64 key.
+    /// Strict base64 — rejects hex.
     ///
     /// Deprecated: oboron is moving to hex-only keys before v1.0.
-    /// Use [`Self::new`] (or [`Self::from_key_hex`]) instead.
+    /// Use [`Self::new`] (or [`Self::from_hex_key`]) instead.
     #[cfg(feature = "base64-keys")]
     #[deprecated(
         since = "0.7.1",
-        note = "use Omnib::new() (hex) instead; base64 key support will be removed before oboron 1.0"
+        note = "use Omnib::new() / from_hex_key() (hex) instead; base64 key support will be removed before oboron 1.0"
     )]
-    pub fn from_key_base64(key_b64: &str) -> Result<Self, Error> {
+    pub fn from_base64_key(key_b64: &str) -> Result<Self, Error> {
         Ok(Self {
             #[allow(deprecated)]
             masterkey: MasterKey::from_base64(key_b64)?,
         })
+    }
+
+    /// Deprecated alias for [`Self::from_base64_key`].
+    ///
+    /// The 0.8.x name had the target/format order flipped relative
+    /// to the standard `from_<format>_<target>` pattern. Doubly
+    /// deprecated: base64 support itself is on the way out before
+    /// oboron 1.0.
+    #[cfg(feature = "base64-keys")]
+    #[deprecated(
+        since = "0.9.0",
+        note = "use Omnib::from_base64_key (or from_hex_key — base64 is going away)"
+    )]
+    pub fn from_key_base64(key_b64: &str) -> Result<Self, Error> {
+        #[allow(deprecated)]
+        Self::from_base64_key(key_b64)
     }
 
     /// Create a new `Omnib` instance from raw bytes.

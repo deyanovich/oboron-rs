@@ -21,6 +21,11 @@ inherits = "release"
 # sibling workspace).
 obcrypt = { version = "0.2.0", default-features = false }
 
+# PyO3 for the oboron-py bindings. abi3-py38 builds one stable-ABI
+# wheel per platform that covers CPython 3.8+, instead of one wheel
+# per Python minor version.
+pyo3 = { version = "0.28", features = ["extension-module", "abi3-py38"] }
+
 # Crypto dependencies
 aes = "0.8"
 cipher = "0.4"

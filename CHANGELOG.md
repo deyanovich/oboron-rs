@@ -17,6 +17,95 @@ but note that pre-1.0 releases may not adhere strictly to all guidelines.
 ### Fixed
 
 
+[oboron v0.9.0] - 2026-05-22
+------------------------------
+
+Two threads in this release:
+
+1. **Hex canonical for z-tier secrets.** Where 0.8.0 made hex
+   the canonical form for **master keys** (a/u-tier), 0.9.0
+   does the same for **z-tier secrets**. Base64 stays accepted
+   on inputs (behind the still-default-on `base64-keys` gate)
+   and `secret_base64()` getters and `from_base64_secret()`
+   constructors are kept as explicit, deprecated escape
+   hatches. Hex-only removal happens later, in a follow-up
+   release.
+
+2. **Constructor naming harmonized to `from_<format>_<target>`.**
+   0.8.x had drifted into a mix of `from_hex_key` and
+   `from_key_base64` on the a/u-tier and a similar split on
+   the z-tier. 0.9.0 settles on `from_<format>_<target>`
+   throughout — `from_hex_key`, `from_base64_key`,
+   `from_hex_secret`, `from_base64_secret`. Every old spelling
+   is kept as a `#[deprecated]` alias.
+
+### Changed (Breaking)
+
+- **Z-tier `.secret()` getter now returns hex** (64 chars), not
+  base64 (43 chars). The previous behavior is preserved under
+  the new `.secret_base64()` getter, gated by `base64-keys`
+  and marked deprecated. `.secret_hex()` stays as an explicit
+  hex alias. Callers that asserted `.secret().len() == 43` or
+  used the return value as a base64 string need to switch to
+  `.secret_base64()`. Applies to: every `ZrbcxC32` /
+  `Zmock1C32` / etc. variant, `Legacy`, `Obz`, `Omnibz`.
+- **Z-tier `::new(secret)` now accepts hex by default** with
+  length-routed fallback to base64 (64 chars → hex; 43 chars
+  → base64, gated). Old callers passing 43-char base64 strings
+  still work transparently while `base64-keys` is on.
+- **Format-explicit constructors are now strict.** Pre-0.9.0
+  `from_hex_key` (a/u-tier) and `from_hex_secret` (z-tier)
+  used to alias through to `Self::new`, which length-routes.
+  In 0.9.0 they parse strictly: `from_hex_key` rejects base64,
+  `from_base64_key` rejects hex, mirroring the explicit-intent
+  shape of `from_bytes`. The routing entry point remains
+  `::new`.
+
+### Added
+
+- **`from_base64_secret(s)`** constructor on every z-tier
+  codec (`ZrbcxC32`/etc., `Legacy`, `Obz`, `Omnibz`),
+  mirroring the a/u-tier `from_base64_key`. Gated by
+  `base64-keys`, marked deprecated.
+- **`secret_base64()`** getter on every z-tier codec, gated by
+  `base64-keys`, marked deprecated. Replaces the previous
+  `.secret()` shape for callers who specifically need the
+  base64 form.
+- **`ZSecret::from_string(s)`** length-router (internal),
+  symmetric with `MasterKey::from_string` in the a/u-tier.
+  Routes 64-char hex → `from_hex`; 43-char base64 →
+  `from_base64` (gated by `base64-keys`); other lengths fail
+  with `InvalidKeyLength`. Every z-tier `::new(secret)`
+  delegates through this router.
+
+### Deprecated (with aliases)
+
+Every old name still compiles; deprecation warnings point at
+the new canonical spelling. Removal is not scheduled — these
+aliases are a soft migration path, not a deadline.
+
+A/u-tier (`from_<target>_<format>` → `from_<format>_<target>`):
+
+- `from_key_hex` → `from_hex_key` (every codec class, `Ob`,
+  `Omnib`, and the standalone `oboron::from_key_hex` /
+  `from_key_hex_with_format` module functions)
+- `from_key_base64` → `from_base64_key` (every codec class,
+  `Ob`, `Omnib`)
+
+Z-tier:
+
+- `from_secret_hex` → `from_hex_secret` (every codec class,
+  `Legacy`, `Obz`, `Omnibz`)
+- `from_secret_base64` → `from_base64_secret` (every codec
+  class, `Legacy`, `Obz`, `Omnibz`)
+- `Obz::from_hex_key` → `Obz::from_hex_secret` (0.8.x leaked
+  the a/u-tier "key" word into a z-tier method; the bound
+  field is a secret, not a key)
+- `Obz::from_key_hex` → `Obz::from_hex_secret` (same; covers
+  callers who reached for the a/u-tier word order)
+- `Obz::from_key_base64` → `Obz::from_base64_secret` (same)
+
+
 [oboron v0.8.1] - 2026-05-22
 ------------------------------
 
