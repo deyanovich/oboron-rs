@@ -8,6 +8,10 @@ string-out* symmetric encryption protocol.
 
 - **[oboron](./oboron)** — Core encryption library
   ([crates.io](https://crates.io/crates/oboron)).
+- **[oboron-py](./oboron-py)** — Python bindings for oboron
+  ([PyPI](https://pypi.org/project/oboron/)). Ships to PyPI
+  only (not crates.io); see `oboron-py/README.md` for the
+  Python API.
 
 ## Related
 
