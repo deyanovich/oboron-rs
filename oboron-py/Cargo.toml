@@ -1,0 +1,68 @@
+[package]
+name = "oboron-py"
+# Decoupled from the oboron Rust crate version: the Python package on
+# PyPI follows its own release cadence. Tracks oboron 0.9.x at this
+# revision (z-tier hex-canonical sweep).
+version = "0.9.0"
+edition = "2021"
+rust-version = "1.77.0"
+authors = ["Bojan Đuričković"]
+license = "MIT"
+repository = "https://gitlab.com/oboron/oboron-rs"
+description = "Python bindings for oboron — string-in/string-out symmetric encryption + encoding (Aags, Aasv, Apgs, Apsv, Upbc, Zrbcx)."
+keywords = ["python", "encryption", "encoding", "cryptography", "oboron"]
+categories = ["cryptography", "api-bindings"]
+readme = "README.md"
+homepage = "https://oboron.org/"
+documentation = "https://oboron.org/"
+# Not a crates.io publication target — this crate ships to PyPI via
+# maturin (see pyproject.toml), not to crates.io.
+publish = false
+
+[lib]
+name = "_oboron"
+crate-type = ["cdylib"]
+
+[features]
+# Default: everything an end user typically wants — the five a/u-tier
+# secure schemes, the z-tier obfuscation scheme, the legacy scheme,
+# mock schemes for testing, keyless constructors, and base64 key
+# acceptance (transitional; will be dropped when oboron core drops it
+# before its 1.0).
+default = [
+    "secure-schemes",
+    "zrbcx",
+    "legacy",
+    "mock",
+    "keyless",
+    "base64-keys",
+]
+
+# Aggregate: the five production-grade schemes from the a-tier
+# (authenticated) and u-tier (unauthenticated-but-real cryptography).
+secure-schemes = ["aags", "apgs", "aasv", "apsv", "upbc"]
+
+# Individual schemes — each forwards to the oboron core feature that
+# gates the wrapper code there, and is also used as a local cfg gate
+# in src/lib.rs to omit the per-scheme Python classes when disabled.
+aags = ["oboron/aags"]
+apgs = ["oboron/apgs"]
+aasv = ["oboron/aasv"]
+apsv = ["oboron/apsv"]
+upbc = ["oboron/upbc"]
+zrbcx = ["oboron/zrbcx"]
+legacy = ["oboron/legacy"]
+mock = ["oboron/mock"]
+
+# Hardcoded-key constructors (`new_keyless`, `enc_keyless`, …) for
+# testing and obfuscation-only contexts. Pulled in by default.
+keyless = ["oboron/keyless"]
+
+# Transitional: accept 86-character base64 strings wherever a key is
+# expected, alongside the canonical 128-character hex. Will go away
+# when oboron core drops the gate before its 1.0.
+base64-keys = ["oboron/base64-keys"]
+
+[dependencies]
+oboron = { version = "0.9", default-features = false }
+pyo3.workspace = true

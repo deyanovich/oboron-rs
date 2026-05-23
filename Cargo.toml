@@ -1,5 +1,5 @@
 [workspace]
-members = ["oboron"]
+members = ["oboron", "oboron-py"]
 resolver = "2"
 
 # Release / bench profiles defined at the workspace level so they
