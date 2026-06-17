@@ -2,44 +2,61 @@
 
 Performance metrics for different schemes and input sizes.
 
-All benchmarks were carried out with static format structs using
-Crockford base32 encoding (e.g., `AagsC32`).
+All benchmarks use static format structs with Crockford base32
+encoding (e.g., `DgcmsivC32`). Figures are Criterion median
+estimates for the timed `enc()` / `dec()` call only (codec
+constructed outside the loop).
+
+These runs were built with native codegen enabled —
+`RUSTFLAGS="-C target-cpu=native"` — which unlocks the wide
+VAES / VPCLMULQDQ paths used by AES and POLYVAL. A default build
+is 12–33% slower on the authenticated schemes. See the
+[Performance Tuning](README.md#performance-tuning) section of the
+README for why, and for the Docker / distribution caveat.
 
 
 ## Performance for Typical IDs (8-16 bytes)
 
-| Scheme | 8B Enc   | 8B Dec   | 16B Enc  | 16B Dec  |
-|--------|----------|----------|----------|----------|
-| zrbcx  | 131.5 ns | 125.9 ns | 128.3 ns | 122.3 ns |
-| aags   | 421.8 ns | 434.7 ns | 424.3 ns | 439.7 ns |
-| aasv   | 322.7 ns | 366.4 ns | 321.7 ns | 365.9 ns |
-| upbc   | 150.7 ns | 142.3 ns | 165.1 ns | 140.5 ns |
+| Scheme  | 8B Enc   | 8B Dec   | 16B Enc  | 16B Dec  |
+|---------|----------|----------|----------|----------|
+| dgcmsiv | 326.5 ns | 250.5 ns | 332.4 ns | 247.5 ns |
+| dsiv    | 262.8 ns | 237.3 ns | 262.3 ns | 224.2 ns |
 
 ## `enc()` Performance
 
-| Input Size | legacy     | zrbcx     | aags     | aasv     | upbc    | apgs    | apsv    |
-|-----------:|----------|----------|----------|----------|----------|----------|----------|
-| 8B         | 141.1 ns | 131.5 ns | 421.8 ns | 322.7 ns | 150.7 ns | 443.7 ns | 392.1 ns |
-| 12B        | 141.0 ns | 130.2 ns | 432.6 ns | 333.2 ns | 150.0 ns | 446.6 ns | 398.4 ns |
-| 16B        | 138.3 ns | 128.3 ns | 424.3 ns | 321.7 ns | 165.1 ns | 442.5 ns | 398.3 ns |
-| 32B        | 157.4 ns | 143.0 ns | 445.0 ns | 344.8 ns | 166.9 ns | 460.8 ns | 408.1 ns |
-| 64B        | 192.2 ns | 174.7 ns | 475.3 ns | 372.6 ns | 197.3 ns | 500.9 ns | 448.3 ns |
-| 128B       | 270.2 ns | 246.5 ns | 545.2 ns | 454.2 ns | 265.7 ns | 578.3 ns | 520.6 ns |
+| Input Size | dgcmsiv  | dsiv     | pgcmsiv  | psiv     |
+|-----------:|---------:|---------:|---------:|---------:|
+| 8B         | 326.5 ns | 262.8 ns | 338.2 ns | 324.0 ns |
+| 12B        | 336.1 ns | 283.1 ns | 342.7 ns | 351.0 ns |
+| 16B        | 332.4 ns | 262.3 ns | 350.1 ns | 325.1 ns |
+| 32B        | 357.0 ns | 273.7 ns | 364.4 ns | 344.9 ns |
+| 64B        | 386.2 ns | 306.9 ns | 395.3 ns | 390.5 ns |
+| 128B       | 473.4 ns | 411.8 ns | 490.2 ns | 484.2 ns |
 
 
 ## `dec()` Performance
 
-| Input Size | legacy     | zrbcx     | aags     | aasv     | upbc    | apgs    | apsv    |
-|-----------:|----------|----------|----------|----------|----------|----------|----------|
-| 8B         | 164.1 ns | 125.9 ns | 434.7 ns | 366.4 ns | 142.3 ns | 438.7 ns | 410.1 ns |
-| 12B        | 167.5 ns | 123.6 ns | 448.6 ns | 375.2 ns | 141.5 ns | 448.5 ns | 412.1 ns |
-| 16B        | 163.7 ns | 122.3 ns | 439.7 ns | 365.9 ns | 140.5 ns | 436.5 ns | 409.9 ns |
-| 32B        | 195.0 ns | 133.3 ns | 456.0 ns | 380.3 ns | 154.0 ns | 454.8 ns | 420.1 ns |
-| 64B        | 249.8 ns | 152.0 ns | 486.4 ns | 424.4 ns | 172.7 ns | 495.0 ns | 460.2 ns |
-| 128B       | 374.3 ns | 210.8 ns | 558.7 ns | 516.0 ns | 217.9 ns | 570.8 ns | 551.2 ns |
+| Input Size | dgcmsiv  | dsiv     | pgcmsiv  | psiv     |
+|-----------:|---------:|---------:|---------:|---------:|
+| 8B         | 250.5 ns | 237.3 ns | 256.3 ns | 279.6 ns |
+| 12B        | 258.2 ns | 238.7 ns | 262.6 ns | 281.8 ns |
+| 16B        | 247.5 ns | 224.2 ns | 252.6 ns | 263.0 ns |
+| 32B        | 256.6 ns | 228.2 ns | 265.4 ns | 273.5 ns |
+| 64B        | 308.5 ns | 276.9 ns | 312.0 ns | 318.2 ns |
+| 128B       | 383.7 ns | 376.3 ns | 381.5 ns | 411.4 ns |
 
 
 ## Notes
 
-- All benchmarks run on the same hardware (Intel i5 CPU)
-- Probabilistic variants (upbc, apgs, apsv) add ~16 bytes overhead for nonce
+- Built with `RUSTFLAGS="-C target-cpu=native"`; a default build
+  (baseline AES-NI / CLMUL) runs the authenticated schemes 12–33%
+  slower. See [Performance Tuning](README.md#performance-tuning).
+- Hardware: 11th-gen Intel (Tiger Lake) i5, single machine for all
+  rows.
+- At these sizes (≤128 B) AES-SIV (`dsiv`, `psiv`) is at or ahead
+  of AES-GCM-SIV (`dgcmsiv`, `pgcmsiv`); GCM-SIV's single-pass
+  POLYVAL pulls ahead only on larger payloads (~256 B and up). See
+  the README for the length-based crossover and scheme-choice
+  guidance.
+- Probabilistic variants (pgcmsiv, psiv) add ~16 bytes of nonce
+  overhead to the output.

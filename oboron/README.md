@@ -14,19 +14,19 @@ developer ergonomics:
 - *Standardized interface*: Multiple encryption algorithms accessible
   through the same API
 - *[Unified key management](#key-management)*: A single 512-bit key
-  works across all schemes with internal extraction to algorithm-specific
-  keys
+  works across all schemes — used directly by the SIV family and via
+  HKDF derivation for the GCM-SIV family
 - *[Prefix-focused entropy](#referenceable-prefixes)*: Maximizes
   entropy in initial characters for referenceable short prefixes (similar
   to Git commit hashes)
 
 In essence, Oboron provides an accessible interface over established
-cryptographic primitives—implementing AES-CBC, AES-GCM-SIV, and AES-SIV—
-with a focus on developer ergonomics and output characteristics. Each
-scheme follows a consistent naming pattern that encodes its security
+cryptographic primitives—implementing AES-GCM-SIV and AES-SIV—with a
+focus on developer ergonomics and output characteristics. Each scheme
+follows a consistent naming pattern that encodes its security
 properties, making it easier to choose the right tool without deep
-cryptographic expertise: e.g., `aasv` = Authenticated + Avalanche
-property + SiV algorithm (AES-SIV).
+cryptographic expertise: e.g., `dsiv` = Deterministic + SiV algorithm
+(AES-SIV).
 
 Key Advantages:
 - *Referenceable prefixes*: High initial entropy enables Git-like short
@@ -43,6 +43,7 @@ Key Advantages:
 - [Algorithm](#algorithm)
 - [Key Management](#key-management)
 - [Properties](#properties)
+- [Performance Tuning](#performance-tuning)
 - [Rust API Overview](#rust-api-overview)
 - [Applications](#applications)
 - [Compatibility](#compatibility)
@@ -56,9 +57,9 @@ Key Advantages:
 Add to your `Cargo.toml`:
 ```toml
 [dependencies]
-oboron = "0.9" # default features
+oboron = "1.0" # default features
 # or with minimal features:
-# oboron = { version = "0.9", features = ["aasv", "apsv"] }
+# oboron = { version = "1.0", features = ["dsiv", "psiv"] }
 ```
 
 Generate your 512-bit key (128 hex characters) using the keygen script
@@ -72,14 +73,14 @@ let key = oboron::generate_key();
 ```
 then save the key as an environment variable.
 
-Use AasvC32 (a secure scheme, 256-bit encrypted with AES-SIV, encoded
+Use DsivC32 (a secure scheme, 256-bit encrypted with AES-SIV, encoded
 using Crockford's base32 variant) for enc/dec:
 ```rust
-use oboron::AasvC32;
+use oboron::DsivC32;
 
 let key = env::var("OBORON_KEY")?; // get the key
 
-let ob = AasvC32::new(&key)?; // create codec instance
+let ob = DsivC32::new(&key)?; // create codec instance
 
 let ot = ob.enc("hello, world")?; // encrypt+encode
 let pt2 = ob.dec(&ot)?; // decode+decrypt
@@ -103,22 +104,22 @@ the encrypted text (obtext), including:
 
 Formats combine a scheme (cryptographic algorithm) with an encoding
 (string representation):
-- *Scheme*: Cryptographic algorithm + mode + parameters (e.g., `aasv`)
+- *Scheme*: Cryptographic algorithm + mode + parameters (e.g., `dsiv`)
 - *Encoding*: String representation method (e.g., `c32`)
 - *Format*: Scheme + encoding = complete transformation (e.g.,
-  `aasv.c32`)
+  `dsiv.c32`)
 
 
 Given an encryption key, the format thus uniquely specifies the complete
 transformation from a plaintext string to an encoded *obtext* string.
 
 Formats are represented by identifiers:
-- `ob:{scheme}.{encoding}`, (URI-like syntax, e.g., `ob:aasv.c32`),
+- `ob:{scheme}.{encoding}`, (URI-like syntax, e.g., `ob:dsiv.c32`),
 - `{scheme}.{encoding}`, when the context is clear
 
 **API Notes**:
 - The `ob:` namespace prefix is not used in the `oboron` API.
-  Formats like `aasv.c32` are used directly.
+  Formats like `dsiv.c32` are used directly.
 - The public interface uses `enc`/`dec` names for methods and functions.
   Thus the `enc` operation comprises the full process, including the
   encryption and encoding stages.
@@ -145,61 +146,41 @@ Formats are represented by identifiers:
 
 ### Schemes
 
-Schemes define the encryption algorithm and its properties, classified
-into *tiers*:
+Schemes define the encryption algorithm and its properties. Oboron is
+authenticated-only: every scheme provides both confidentiality and
+integrity protection.
 
-#### Scheme Tiers
-
-- **`a` - Authenticated**
-  - Provide both confidentiality and integrity protection
-  - Examples: `ob:aasv`, `ob:aags`, `ob:apsv`, `ob:apgs`
-  - *Always prefer `a`-tier schemes for security-critical applications*
-
-- **`u` - Unauthenticated**
-  - Provide confidentiality only (no integrity protection)
-  - Example: `ob:upbc`
-  - Suitable when integrity is verified externally or not required
-  - *Warning*: Vulnerable to ciphertext tampering
-
-- **`z` - Obfuscation tier**
-  - *Not cryptographically secure* - for non-security use only
-  - Example: `ob:zrbcx` - deterministic obfuscation with constant IV
-  - Requires explicit `zrbcx` (or `legacy`) feature flag (not in
-    `default`)
-  - Z-tier uses a 32-byte **secret** instead of the 64-byte master
-    key; constructors are named `from_<format>_secret` (e.g.
-    `ZrbcxC32::from_hex_secret`, `Obz::from_base64_secret`)
-  - See [Z_TIER.md](Z_TIER.md) for details and warnings
+> The unauthenticated (`upcbc`) and obfuscation (`zdcbc`) schemes live
+> in the separate [`obu`](https://gitlab.com/oboron/obu-rs) crate, which
+> shares no code with oboron's authenticated core.
 
 #### Scheme Properties
 
-The second letter of the scheme ID further describe the properties of the
-scheme:
-- **`.a..` - avalanche, deterministic**
+The first letter of the scheme ID describes the determinism property of
+the scheme:
+- **`d...` - deterministic**
   - *deterministic* => same plaintext always produces same obtext
-  - *avalanche* => entropy uniformly distributed; change in any byte of
-    plaintext completely changes the entire obtext (hash-like property)
-  - Examples: `ob:aasv`, `ob:aags`
-- **`.p..` - probabilistic**
+  - entropy uniformly distributed; change in any byte of plaintext
+    completely changes the entire obtext (hash-like property)
+  - Examples: `dsiv`, `dgcmsiv`
+- **`p...` - probabilistic**
   - Different output each time
-  - Examples: `ob:apsv`, `ob:apgs`, `ob:upbc`
+  - Examples: `psiv`, `pgcmsiv`
 
 #### Scheme Cryptographic Algorithms
 
-The remaining two letters in scheme IDs indicate the algorithm:
-- `gs` = AES-GCM-SIV
-- `sv` = AES-SIV
-- `bc` = AES-CBC
+The remaining letters in scheme IDs indicate the algorithm:
+- `gcmsiv` = AES-GCM-SIV
+- `siv` = AES-SIV
 
 #### Summary Table
 
-| Scheme     | Algorithm   | Deterministic? | Authenticated? | Notes                              |
-| :--------- | :---------- | :------------- | :------------- | :--------------------------------- |
-| `ob:aasv`  | AES-SIV     | Yes            | Yes            | General purpose, deterministic |
-| `ob:aags`  | AES-GCM-SIV | Yes            | Yes            | Deterministic alternative |
-| `ob:apsv`  | AES-SIV     | No             | Yes            | Maximum privacy protection |
-| `ob:apgs`  | AES-GCM-SIV | No             | Yes            | Probabilistic alternative |
-| `ob:upbc`  | AES-CBC     | No             | No             | Unauthenticated - use with caution |
+| Scheme     | Algorithm   | Deterministic? | Notes                          |
+| :--------- | :---------- | :------------- | :----------------------------- |
+| `dsiv`     | AES-SIV     | Yes            | General purpose, deterministic |
+| `dgcmsiv`  | AES-GCM-SIV | Yes            | Deterministic alternative      |
+| `psiv`     | AES-SIV     | No             | Maximum privacy protection     |
+| `pgcmsiv`  | AES-GCM-SIV | No             | Probabilistic alternative      |
 
 Key Concepts:
 * *Deterministic:* Same input (key + plaintext) always produces same
@@ -213,15 +194,13 @@ Key Concepts:
 
 #### Choosing a Scheme
 
-- `ob:aasv`: General-purpose secure encryption with deterministic output
+- `dsiv`: General-purpose secure encryption with deterministic output
   and compact size
-- `ob:apsv`: Maximum privacy with probabilistic output (larger size due
+- `psiv`: Maximum privacy with probabilistic output (larger size due
   to nonce)
-- `ob:upbc`: Only when integrity is handled externally
 
-> *Note on encryption strength*: All `a`-tier and `u`-tier schemes use
-  256-bit AES encryption. The `z`-tier uses 128-bit AES for performance
-  in non-security contexts.
+> *Note on encryption strength*: All oboron schemes use 256-bit AES
+  encryption.
 
 
 ## Algorithm
@@ -246,61 +225,36 @@ dec operation:
     [obtext] (string) -> decoding -> [ciphertext] (bytes) -> decryption -> [plaintext] (string)
 ```
 
-The above diagram is conceptual; actual implementation includes
-scheme-specific steps like scheme byte appending and (for `z`-tier
-schemes only) optional ciphertext prefix restructuring. With this
-middle-step included, the diagram becomes:
-```
-enc operation:
-    [plaintext] -> encryption -> [ciphertext] -> oboron pack -> [payload] -> encoding -> [obtext] 
-
-dec operation:
-    [obtext] -> decoding -> [payload] -> oboron unpack -> [ciphertext] -> decryption -> [plaintext]
-```
-
-In `a`-tier and `u`-tier schemes, the difference between the payload and
-the ciphertext is in the 2-byte scheme marker that is appended to the
-ciphertext, enabling scheme autodetection in decoding.
-
-### Padding Design
-
-Oboron's CBC schemes use a custom padding scheme optimized for UTF-8
-strings:
-- Uses 0x01 byte for padding (Unicode control character, never valid in
-  UTF-8)
-- No padding needed when plaintext ends at block boundary
-- 5% performance improvement over PKCS#7
-- Smaller output size compared to PKCS#7
-
-**Rationale:** Oboron exclusively processes UTF-8 strings, not arbitrary
-binary data.  The 0x01 padding byte can never appear in valid UTF-8
-input, ensuring unambiguous decoding.  Therefore, under the UTF-8 input
-constraint, this padding is functionally equivalent to PKCS#7 and does
-not weaken security.  The UTF-8 input constraint is guaranteed by the
-Rust type system - all `enc` functions and methods accept a `&str`,
-therefore passing an input that is not valid UTF-8 would not be allowed
-by the Rust compiler.  This UTF-8 guarantee is enforced at compile time,
-eliminating padding ambiguity errors at runtime.
+The obtext payload is exactly the AEAD output of the chosen scheme —
+there is no oboron-specific framing. The scheme is always supplied by
+the caller via the format, so no marker is embedded in the obtext.
 
 
 ## Key Management
 
 ### Single Master Key Model
 
-Oboron uses a single 512-bit master key partitioned into
-algorithm-specific subkeys:
+Oboron uses a single 512-bit (64-byte) master key. Each scheme family
+obtains its key material from it differently:
 
-- `ob:aags`, `ob:apgs`: use the first 32 bytes (256 bits) for AES-GCM-SIV
-  key
-- `ob:aasv`, `ob:apsv`: use the full 64 bytes (512 bits) for AES-SIV key
-- `ob:upbc` uses the last 32 bytes (256 bits) for AES-CBC key
+- `dsiv`, `psiv` (AES-SIV): the full 64-byte master is used directly as
+  the AES-SIV key — no derivation. AES-SIV internally splits it into a
+  256-bit S2V/CMAC authentication subkey (bytes 0–31) and a 256-bit
+  CTR-mode encryption subkey (bytes 32–63).
+- `dgcmsiv`, `pgcmsiv` (AES-GCM-SIV): a 32-byte AES-256-GCM-SIV key is
+  derived with `HKDF-Expand(PRK = master, info = "gcmsiv", L = 32)`
+  (HMAC-SHA-256), shared by both. HKDF-Extract is omitted — the 512-bit
+  master is already a uniform pseudorandom key.
 
-**Design Rationale:** This approach prioritizes low latency for
-short-string encryption.  No hash-based KDF (e.g., HKDF) is used, as this
-would dominate runtime for intended workloads.
+**Design Rationale:** the SIV family is the small-input choice, so it
+skips key derivation entirely to keep latency low; the GCM-SIV family
+wins on larger inputs, where the one-time HKDF-Expand cost is negligible
+against the AEAD work. Sharing one key across each family's
+deterministic and probabilistic schemes is safe because both AEADs are
+nonce-misuse-resistant.
 
-The master key never leaves your application. Algorithm-specific keys
-are extracted on-the-fly and never cached or stored.
+The master key never leaves your application; the derived GCM-SIV key
+material is held only transiently and never cached or stored.
 
 > **FAQ:** *Why use a single key across all schemes?*
 >
@@ -320,14 +274,8 @@ constructor.
 
 Raw byte keys are also supported unconditionally:
 ```rust
-let ob = AasvC32::from_bytes(&key_bytes)?;
+let ob = DsivC32::from_bytes(&key_bytes)?;
 ```
-
-> **Note:** Base64 key input (an 86-character form) is supported under
-> the default-on but **deprecated** `base64-keys` feature. The
-> auto-detecting `::new(&key)` constructors accept either form
-> (128 chars → hex, 86 chars → base64). Base64 key APIs will be removed
-> at `oboron 1.0`; migrate to hex.
 
 #### Keyless mode
 
@@ -386,23 +334,27 @@ same output.
 
 ### Performance Comparison
 
-Oboron is optimized for performance with short strings, often exceeding
-both SHA256 and JWT performance while providing reversible encryption.
+Oboron is optimized for performance with short strings: it
+comfortably outperforms JWT on both encode and decode while staying
+in the same ballpark as a bare SHA256 digest — despite providing
+reversible, *authenticated* encryption rather than a one-way hash.
+Figures below are 8-byte inputs from a native build
+(`-C target-cpu=native`; see [Performance Tuning](#performance-tuning)).
 
 > **Note:** As a general-purpose encryption library, Oboron is not a
 > replacement for either JWT or SHA256.  We use those two for baseline
 > comparison, as they are both standard and highly optimized libraries.
 
-| Scheme     | 8B Encode | 8B Decode | Security      | Use Case                        |
-|------------|----------:|-----------|---------------|---------------------------------|
-| `ob:aasv`  | 334 ns    | 364 ns    | Secure + Auth | Balanced performance + security |
-| JWT        | 550 ns    | 846 ns    | Auth only`*`  | Signature without encryption    |
-| SHA256     | 191 ns    | N/A       | One-way       | Hashing only                    |
+| Scheme       | 8B Encode | 8B Decode | Security      | Use Case                        |
+|--------------|----------:|----------:|---------------|---------------------------------|
+| `dsiv`       | 263 ns    | 237 ns    | Secure + Auth | Balanced performance + security |
+| JWT          | 696 ns    | 1095 ns   | Auth only`*`  | Signature without encryption    |
+| SHA256       | 124 ns    | N/A       | One-way       | Hashing only                    |
 
 `*` **Note**: JWT baseline (HMAC-SHA256) provides authentication without
-encryption.  Despite comparing against our stronger **`a`-tier** (secure
-+ authenticated), Oboron maintains performance advantages while providing
-full confidentiality.
+encryption.  Despite comparing against our stronger authenticated
+encryption (confidentiality + integrity), Oboron maintains performance
+advantages while providing full confidentiality.
 
 More detailed benchmark results are presented in a separate document:
 - [BENCHMARKS.md](BENCHMARKS.md).
@@ -416,15 +368,101 @@ available here:
 
 ### Output Length Comparison
 
-| Method        | Small string output length |
-|---------------|----------------------------|
-| `ob:aasv`     | 31-48 characters           |
-| `ob:apsv`     | 56-74 characters           |
-| SHA256        | 64 characters              |
-| JWT           | 150+ characters            |
+| Method          | Small string output length |
+|-----------------|----------------------------|
+| `dsiv`          | 31-48 characters           |
+| `psiv`          | 56-74 characters           |
+| SHA256          | 64 characters              |
+| JWT             | 150+ characters            |
 
 A more complete output length comparison is given in the
 [Appendix](#appendix-obtext-lengths).
+
+## Performance Tuning
+
+### Native CPU builds (POLYVAL / AES acceleration)
+
+The GCM-SIV schemes (`dgcmsiv`, `pgcmsiv`) hash their input with
+POLYVAL, and every scheme runs AES. Recent x86-64 CPUs provide wide
+vector instructions for both — VAES and VPCLMULQDQ — but the
+underlying RustCrypto backends only emit those wide paths when the
+crate is compiled with the matching target features enabled. A
+default `cargo build` uses the baseline AES-NI / CLMUL path and does
+*not* select the wide path at runtime.
+
+Enabling native codegen measured 12–33% faster encryption across
+schemes on an 11th-gen Intel (the largest gains land on the
+AES-heavy SIV schemes, which pick up VAES):
+
+```shell
+RUSTFLAGS="-C target-cpu=native" cargo build --release
+```
+
+Because `target-cpu` is a `rustc` codegen flag — not a `Cargo.toml`
+profile key — a library cannot set it on your behalf. The choice
+belongs to whoever builds the final binary or image. The durable
+form is a `.cargo/config.toml` in *your* project (see
+[`.cargo/config.toml.example`](.cargo/config.toml.example)):
+
+```toml
+[build]
+rustflags = ["-C", "target-cpu=native"]
+```
+
+> **Docker / distribution caveat:** `target-cpu=native` bakes in the
+> microarchitecture of the *build* host. If you build in CI and run
+> the image on different hardware that lacks those instructions, the
+> binary aborts with an illegal-instruction fault (SIGILL) — there is
+> no graceful fallback. Use `native` only when the build host and run
+> host are the same class of machine. For images shipped to
+> heterogeneous hosts, pin an explicit floor that every run host is
+> guaranteed to support instead, e.g.
+> `-C target-feature=+aes,+vaes,+vpclmulqdq,+avx2` or
+> `-C target-cpu=x86-64-v4`. (VAES / VPCLMULQDQ sit above the common
+> `x86-64-v3` baseline, so they must be asserted explicitly.)
+
+### SIV vs GCM-SIV: choosing by input length
+
+`siv` (AES-SIV) and `gcmsiv` (AES-GCM-SIV) trade off by payload size:
+
+- **AES-SIV** (`dsiv`, `psiv`) has lower fixed per-message cost but
+  passes over the data with AES twice (S2V + CTR), so its cost rises
+  faster with length.
+- **AES-GCM-SIV** (`dgcmsiv`, `pgcmsiv`) pays a higher fixed cost (a
+  per-message key derivation) but hashes with POLYVAL in a single
+  pass, giving better throughput on longer inputs.
+
+The result is a crossover: short inputs favor SIV, longer inputs
+favor GCM-SIV. Measured enc, `*.c32`, native build:
+
+| Input  |    `dsiv` | `dgcmsiv` |    `psiv` | `pgcmsiv` |
+| -----: | --------: | --------: | --------: | --------: |
+|   32 B |  **272 ns** |    348 ns |  **349 ns** |    361 ns |
+|  128 B |  **395 ns** |    486 ns |  **464 ns** |    476 ns |
+|  256 B |  **592 ns** |    614 ns |    648 ns |  **618 ns** |
+| 1024 B |   1.61 µs | **1.39 µs** |   1.73 µs | **1.44 µs** |
+
+(Bold = faster of the SIV / GCM-SIV pair at that size.)
+
+Rule of thumb:
+
+- **Short payloads (≲128 B)** — tokens, identifiers, referenceable
+  prefixes, the typical oboron use case — prefer **SIV** (`dsiv` /
+  `psiv`). It is as fast or faster *and* produces shorter obtext.
+- **Larger payloads (≳256 B)** — prefer **GCM-SIV** (`dgcmsiv` /
+  `pgcmsiv`); its single-pass POLYVAL throughput pulls ahead and the
+  margin widens with length (~15% faster at 1 KB).
+- The exact crossover depends on the build: a default build crosses
+  near ~256 B, while a native build keeps SIV ahead a little longer
+  because VAES accelerates SIV's double AES pass more than it helps
+  GCM-SIV. The probabilistic pair (`psiv` / `pgcmsiv`) crosses earlier
+  than the deterministic pair (`dsiv` / `dgcmsiv`).
+
+This is purely a performance trade-off — both algorithms are
+nonce-misuse-resistant authenticated AEADs. Choose the property you need
+(deterministic `d...` vs probabilistic `p...`) first, then SIV vs
+GCM-SIV by size. See [BENCHMARKS.md](BENCHMARKS.md) for the full
+matrix.
 
 ## Rust API Overview
 
@@ -438,23 +476,23 @@ clarity.
 Use fixed-format types when formats are known at compile time for optimal
 performance and type safety:
 ```rust
-use oboron::ApgsB64;
+use oboron::PgcmsivB64;
 
 let key = env::var("OBORON_KEY")?;
-let apgs = ApgsB64::new(&key)?;
+let pgcmsiv = PgcmsivB64::new(&key)?;
 
-let ot = apgs.enc("hello")?;
-let pt2 = apgs.dec(&ot)?;
+let ot = pgcmsiv.enc("hello")?;
+let pt2 = pgcmsiv.dec(&ot)?;
 assert_eq!(pt2, "hello");
 ```
 
 Available types include all combinations of scheme variants (e.g.,
-`Upbc`, `Aags`, `Apgs`, `Aasv`, `Apsv`) with encoding specifications
+`Dgcmsiv`, `Pgcmsiv`, `Dsiv`, `Psiv`) with encoding specifications
 (`B64`, `Hex`, `B32`, or `C32`), and concatenates the two in struct
 names, for example:
-- `UpbcHex` - encoder for `ob:upbc.hex` format
-- `AagsB64` - encoder for `ob:aags.b64` format
-- `AasvC32` - encoder for `ob:aasv.c32` format.
+- `DgcmsivHex` - encoder for `ob:dgcmsiv.hex` format
+- `DgcmsivB64` - encoder for `ob:dgcmsiv.b64` format
+- `DsivC32` - encoder for `ob:dsiv.c32` format.
 
 ### 2. Runtime Format Selection (`Ob`)
 
@@ -463,7 +501,7 @@ When format specification at runtime is required, use `Ob`:
 use oboron::Ob;
 
 let key = env::var("OBORON_KEY")?;
-let ob = Ob::new("aasv.b64", &key)?;
+let ob = Ob::new("dsiv.b64", &key)?;
 
 let ot = ob.enc("hello")?;
 let pt2 = ob.dec(&ot)?;
@@ -471,34 +509,18 @@ assert_eq!(pt2, "hello");
 ```
 The format can also be changed with mutable instances:
 ```rust
-let mut ob = Ob::new("aags.b64", &key)?;
-let ot = ob.enc("hello")?; // aags.b64 obtext
+let mut ob = Ob::new("dgcmsiv.b64", &key)?;
+let ot = ob.enc("hello")?; // dgcmsiv.b64 obtext
 
 // Format modification
-ob.set_format("apsv.hex")?;
-let ot_hex = ob.enc("world")?; // apsv.hex obtext
+ob.set_format("psiv.hex")?;
+let ot_hex = ob.enc("world")?; // psiv.hex obtext
 ```
-
-`Ob` offers another advantage over fixed-format types like `AasvC32`:
-the `autodec()` method.
-```rust
-let ob = Ob::new("aasv.c32, &key);
-let pt2 = ob.autodec(&some_ot)
-```
-This method will decode the obtext in any format, as long as it was
-encrypted with the same key.
-
-Note:
-While `Omnib` (described below) also has an `autodec()` method, `Ob`'s
-variant will try the current encoding first (`c32` in the example above),
-before resorting to a heuristic logic combined with a trial and error
-guessing the encoding that `Omnib` uses exclusively, and will therefore
-have better performance than `Omnib::autodec()` if the encoding is known.
 
 ### 3. Multiple Format Support (`Omnib`)
 
-`Omnib` differs in format management and provides comprehensive
-`autodec()` functionality.
+`Omnib` differs in format management: it stores no format and takes one
+per call.
 
 **Multi-Format Workflow:** Designed for simultaneous work with different
 formats, requiring format specification in each operation:
@@ -508,17 +530,10 @@ use oboron::Omnib;
 let omb = Omnib::new(&key)?;
 
 // Format specification per operation
-let ot = omb.enc("test", "apsv.b64");
-let pt2 = omb.dec(&ot, "apsv.b64");
-let pt_other = omb.dec(&other, "aasv.c32");
-
-// Autodecode when format is unknown
-let pt2 = omb.autodec(&ot);
+let ot = omb.enc("test", "psiv.b64");
+let pt2 = omb.dec(&ot, "psiv.b64");
+let pt_other = omb.dec(&other, "dsiv.c32");
 ```
-
-Note performance implications: autodetection uses trial-and-error across
-encodings, with worst-case performance ~3x slower than known-format dec
-operations.
 
 ### Using Format Constants
 
@@ -526,27 +541,25 @@ For type safety and discoverability, use the provided format constants
 instead of string literals:
 
 ```rust
-use oboron::{Ob, Omnib, AASV_B64, AASV_HEX};
+use oboron::{Ob, Omnib, DSIV_B64, DSIV_HEX};
 
 let key = oboron::generate_key();
 
 // With Ob (runtime format selection)
-let ob = Ob::new(AASV_B64, &key)?;
+let ob = Ob::new(DSIV_B64, &key)?;
 
 // With Omnib (multi-format operations)
 let omb = Omnib::new(&key)?;
-let ot_b64 = omb.enc("data", AASV_B64)?;
-let ot_hex = omb.enc("data", AASV_HEX)?;
+let ot_b64 = omb.enc("data", DSIV_B64)?;
+let ot_hex = omb.enc("data", DSIV_HEX)?;
 ```
 
 Available constants:
-- `UPBC_C32`, `UPBC_B32`, `UPBC_B64`, `UPBC_HEX`
-- `AAGS_C32`, `AAGS_B32`, `AAGS_B64`, `AAGS_HEX`
-- `APGS_C32`, `APGS_B32`, `APGS_B64`, `APGS_HEX`
-- `AASV_C32`, `AASV_B32`, `AASV_B64`, `AASV_HEX`
-- `APSV_C32`, `APSV_B32`, `APSV_B64`, `APSV_HEX`
+- `DGCMSIV_C32`, `DGCMSIV_B32`, `DGCMSIV_B64`, `DGCMSIV_HEX`
+- `PGCMSIV_C32`, `PGCMSIV_B32`, `PGCMSIV_B64`, `PGCMSIV_HEX`
+- `DSIV_C32`, `DSIV_B32`, `DSIV_B64`, `DSIV_HEX`
+- `PSIV_C32`, `PSIV_B32`, `PSIV_B64`, `PSIV_HEX`
 - Testing:  `MOCK1_C32`, `MOCK2_B32`, etc.
-- Legacy: `LEGACY`
 
 ### Advanced: `Format` Objects
 
@@ -555,7 +568,7 @@ string constants:
 ```rust
 use oboron::{Ob, Format, Scheme, Encoding};
 
-let format = Format::new(Scheme::Aasv, Encoding::B64);
+let format = Format::new(Scheme::Dsiv, Encoding::B64);
 let ob = Ob::new(format, &key)?;
 ```
 
@@ -565,8 +578,8 @@ For compile-time known schemes and encodings, however, static types
 provide optimal performance, concise syntax, and strongest type
 guarantees:
 ```rust
-use oboron::AasvB64;
-let ob = AasvB64::new(&key)?;
+use oboron::DsivB64;
+let ob = DsivB64::new(&key)?;
 let ot = ob.enc("secret")?;
 ```
 The format is built into the struct, no format strings, constants, or
@@ -578,43 +591,36 @@ Oboron exposes a small set of optional features so you can opt out of
 schemes you don't need. This is mainly useful for WebAssembly builds
 where bundle size matters.
 
-**Default:** all five secure production-ready schemes (`aasv`, `apsv`,
-`aags`, `apgs`, `upbc`) plus transitional `base64-keys` support (to be
-removed at 1.0).
+**Default:** all four authenticated production-ready schemes (`dsiv`,
+`psiv`, `dgcmsiv`, `pgcmsiv`).
 
 Available features:
 
-- **`secure-schemes`** — bundles all five secure schemes (default).
-- **`aasv`**, **`apsv`**, **`aags`**, **`apgs`**, **`upbc`** —
-  individual secure schemes; enable only what you need to minimize
+- **`secure-schemes`** — bundles all four authenticated schemes
+  (default).
+- **`dsiv`**, **`psiv`**, **`dgcmsiv`**, **`pgcmsiv`** —
+  individual schemes; enable only what you need to minimize
   binary size.
-- **`zrbcx`** — insecure z-tier scheme for fast obfuscation only.
-  Off by default.
-- **`legacy`** — backward-compatibility for early-adopter encrypted
-  data. Off by default.
-- **`mock`** — mock1, mock2, zmock1 testing schemes (no encryption).
+- **`mock`** — mock1, mock2 testing schemes (no encryption).
 - **`keyless`** — hardcoded-key constructors for tests/obfuscation.
 - **`unchecked-utf8`** — skip post-decrypt UTF-8 validation. Wrong-key
   decrypts return garbage instead of `InvalidUtf8`. Use only in
   trusted-source scenarios.
-- **`base64-keys`** *(deprecated, default-on)* — base64 string keys
-  and `HARDCODED_KEY_BASE64`. Will be removed before 1.0; migrate to
-  hex.
 
 Hex and raw-byte key input are always available — no feature flag
-needed (`AasvC32::new(&hex_key)`, `AasvC32::from_bytes(&key_bytes)`).
+needed (`DsivC32::new(&hex_key)`, `DsivC32::from_bytes(&key_bytes)`).
 
 Examples:
 
 ```toml
-# Minimal: only aasv (deterministic AES-SIV).
-oboron = { version = "0.9", default-features = false, features = ["aasv"] }
+# Minimal: only dsiv (deterministic AES-SIV).
+oboron = { version = "1.0", default-features = false, features = ["dsiv"] }
 
 # Both SIV schemes.
-oboron = { version = "0.9", default-features = false, features = ["aasv", "apsv"] }
+oboron = { version = "1.0", default-features = false, features = ["dsiv", "psiv"] }
 
-# Default behavior but without the deprecated base64 keys.
-oboron = { version = "0.9", default-features = false, features = ["secure-schemes"] }
+# All authenticated schemes.
+oboron = { version = "1.0", default-features = false, features = ["secure-schemes"] }
 ```
 
 At least one scheme feature must be enabled — building with no
@@ -627,8 +633,8 @@ consistent interface:
 
 - `enc(plaintext: &str) -> Result<String, Error>` - Encode plaintext to
   obtext
-- `dec(obtext: &str) -> Result<String, Error>` - Decode with automatic
-  scheme detection
+- `dec(obtext: &str) -> Result<String, Error>` - Decode obtext using the
+  codec's bound format
 - `scheme() -> Scheme` - Current scheme
 - `encoding() -> Encoding` - Current encoding
 - `format() -> Format` - Current format (scheme + encoding)
@@ -637,13 +643,13 @@ consistent interface:
 
 ```rust
 // main interface: pass a 128-char hex key string.
-let ob = AagsB64::new(&env::var("OBORON_KEY")?);       // hex key (or base64, deprecated)
+let ob = DgcmsivB64::new(&env::var("OBORON_KEY")?);       // hex key
 // explicit hex constructor:
-let ob = AagsB64::from_hex_key(&env::var("HEX_KEY")?); // hex key
+let ob = DgcmsivB64::from_hex_key(&env::var("HEX_KEY")?); // hex key
 // raw bytes:
-let ob = AagsB64::from_bytes(&key_bytes)?;             // raw bytes key
+let ob = DgcmsivB64::from_bytes(&key_bytes)?;             // raw bytes key
 // with "keyless" feature enabled:
-let ob = AagsB64::new_keyless()?;              // insecure/testing only
+let ob = DgcmsivB64::new_keyless()?;              // insecure/testing only
 ```
 
 **Warning**: `new_keyless()` uses the publicly available hardcoded key
@@ -674,8 +680,8 @@ prefix entropy and compactness—enables specialized applications:
 
 | Use Case            | Traditional Solution | Oboron Approach                         |
 |---------------------|----------------------|-----------------------------------------|
-| Short unique IDs    | UUIDv4 (36 chars)    | `ob:aasv.c32` (34-47 chars, reversible) |
-| URL parameters      | JWT (150+ chars)     | `ob:aasv.b64` (4.5x smaller, 4x faster) |
+| Short unique IDs    | UUIDv4 (36 chars)    | `ob:dsiv.c32` (34-47 chars, reversible) |
+| URL parameters      | JWT (150+ chars)     | `ob:dsiv.b64` (4.5x smaller, 4x faster) |
 | Database ID masking | Hashids (not secure) | Proper encryption                       |
 
 ### API Simplification
@@ -696,7 +702,7 @@ let encoded = base64::encode(ciphertext);
 
 **After (Oboron - simplified, string-oriented):**
 ```rust
-let ob = AasvC32::new(&env::var("OBORON_KEY")?);
+let ob = DsivC32::new(&env::var("OBORON_KEY")?);
 let ot = ob.enc("Hello World")?;
 ```
 
@@ -731,7 +737,7 @@ let obfuscated = hashids.encode(&[123]); // "k2d3e4"
 
 **After (Oboron - encrypted, reversible, secure):**
 ```rust
-let ob = AasvC32::new(&env::var("OBORON_KEY")?);
+let ob = DsivC32::new(&env::var("OBORON_KEY")?);
 let ot = ob.enc("user:123")?; // "uf2glao2xd7f"
 // Can include namespace prefixes to prevent type confusion
 ```
@@ -754,7 +760,7 @@ let token = encode(&Header::default(), &claims, &EncodingKey)?;
 
 **After (Oboron - compact, simple):**
 ```rust
-let ob = AagsC32::new(&env::var("OBORON_KEY")?);
+let ob = DgcmsivC32::new(&env::var("OBORON_KEY")?);
 let state = serde_json::to_string(&claims)?;
 let token = ob.enc(&state)?; // ~50 characters
 // "b4g9lao2xd7fnbq5z53cb63ukc"
@@ -789,8 +795,9 @@ run `git submodule update --init` afterwards) before
 
 ## Related Crates
 
-- [`oboron-cli`](https://crates.io/crates/oboron-cli) — Command-line interface (`ob` and `obz` binaries)
+- [`oboron-cli`](https://crates.io/crates/oboron-cli) — Command-line interface (`ob` binary)
 - [`oboron-py`](https://crates.io/crates/oboron-py) — Python bindings ([PyPI](https://pypi.org/project/oboron/))
+- [`obu`](https://gitlab.com/oboron/obu-rs) — the separate unauthenticated (`upcbc`) and obfuscation (`zdcbc`) crate
 
 ## Getting Help
 
@@ -799,7 +806,22 @@ run `git submodule update --init` afterwards) before
 
 ## License
 
-Licensed under the MIT license ([LICENSE](LICENSE)).
+Licensed under either of
+
+- Apache License, Version 2.0
+  ([LICENSE-APACHE](LICENSE-APACHE) or
+  <https://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or
+  <https://opensource.org/licenses/MIT>)
+
+at your option.
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution
+intentionally submitted for inclusion in the work by you, as
+defined in the Apache-2.0 license, shall be dual licensed as
+above, without any additional terms or conditions.
 
 ## Changelog
 
@@ -816,36 +838,30 @@ feature)
 
 ## Base32 encoding (b32/c32)
 
-| Format    | 4B | 8B | 12B | 16B | 24B | 32B | 64B | 128B |
-|-----------|---:|---:|----:|----:|----:|----:|----:|-----:|
-| mock1.b32 | 10 | 16 |  23 |  29 |  42 |  55 | 106 |  208 |
-|  aags.b32 | 36 | 42 |  48 |  55 |  68 |  80 | 132 |  234 |
-|  aasv.b32 | 36 | 42 |  48 |  55 |  68 |  80 | 132 |  234 |
-|  apgs.b32 | 55 | 61 |  68 |  74 |  87 | 100 | 151 |  253 |
-|  apsv.b32 | 61 | 68 |  74 |  80 |  93 | 106 | 157 |  260 |
-|  upbc.b32 | 55 | 55 |  55 |  55 |  80 |  80 | 132 |  234 |
-| zrbcx.b32 | 29 | 29 |  29 |  29 |  55 |  55 | 106 |  208 |
+| Format       | 4B | 8B | 12B | 16B | 24B | 32B | 64B | 128B |
+|--------------|---:|---:|----:|----:|----:|----:|----:|-----:|
+| mock1.b32    | 10 | 16 |  23 |  29 |  42 |  55 | 106 |  208 |
+| dgcmsiv.b32  | 36 | 42 |  48 |  55 |  68 |  80 | 132 |  234 |
+| dsiv.b32     | 36 | 42 |  48 |  55 |  68 |  80 | 132 |  234 |
+| pgcmsiv.b32  | 55 | 61 |  68 |  74 |  87 | 100 | 151 |  253 |
+| psiv.b32     | 61 | 68 |  74 |  80 |  93 | 106 | 157 |  260 |
 
 ## Base64 Encoding (b64)
 
-| Format    | 4B | 8B | 12B | 16B | 24B | 32B | 64B | 128B |
-|-----------|---:|---:|----:|----:|----:|----:|----:|-----:|
-| mock1.b64 |  8 | 14 |  19 |  24 |  35 |  46 |  88 |  174 |
-|  aags.b64 | 30 | 35 |  40 |  46 |  56 |  67 | 110 |  195 |
-|  aasv.b64 | 30 | 35 |  40 |  46 |  56 |  67 | 110 |  195 |
-|  upbc.b64 | 46 | 46 |  46 |  46 |  67 |  67 | 110 |  195 |
-|  apgs.b64 | 46 | 51 |  56 |  62 |  72 |  83 | 126 |  211 |
-|  apsv.b64 | 51 | 56 |  62 |  67 |  78 |  88 | 131 |  216 |
-| zrbcx.b64 | 24 | 24 |  24 |  24 |  46 |  46 |  88 |  174 |
+| Format       | 4B | 8B | 12B | 16B | 24B | 32B | 64B | 128B |
+|--------------|---:|---:|----:|----:|----:|----:|----:|-----:|
+| mock1.b64    |  8 | 14 |  19 |  24 |  35 |  46 |  88 |  174 |
+| dgcmsiv.b64  | 30 | 35 |  40 |  46 |  56 |  67 | 110 |  195 |
+| dsiv.b64     | 30 | 35 |  40 |  46 |  56 |  67 | 110 |  195 |
+| pgcmsiv.b64  | 46 | 51 |  56 |  62 |  72 |  83 | 126 |  211 |
+| psiv.b64     | 51 | 56 |  62 |  67 |  78 |  88 | 131 |  216 |
 
 ## Hex Encoding (hex)
 
-| Format    | 4B | 8B | 12B | 16B | 24B | 32B | 64B | 128B |
-| ----------|---:|---:|----:|----:|----:|----:|----:|-----:|
-| mock1.hex | 12 | 20 |  28 |  36 |  52 |  68 | 132 |  260 |
-|  aags.hex | 44 | 52 |  60 |  68 |  84 | 100 | 164 |  292 |
-|  aasv.hex | 44 | 52 |  60 |  68 |  84 | 100 | 164 |  292 |
-|  upbc.hex | 68 | 68 |  68 |  68 | 100 | 100 | 164 |  292 |
-|  apgs.hex | 68 | 76 |  84 |  92 | 108 | 124 | 188 |  316 |
-|  apsv.hex | 76 | 84 |  92 | 100 | 116 | 132 | 196 |  324 |
-| zrbcx.hex | 36 | 36 |  36 |  36 |  68 |  68 | 132 |  260 |
+| Format       | 4B | 8B | 12B | 16B | 24B | 32B | 64B | 128B |
+| -------------|---:|---:|----:|----:|----:|----:|----:|-----:|
+| mock1.hex    | 12 | 20 |  28 |  36 |  52 |  68 | 132 |  260 |
+| dgcmsiv.hex  | 44 | 52 |  60 |  68 |  84 | 100 | 164 |  292 |
+| dsiv.hex     | 44 | 52 |  60 |  68 |  84 | 100 | 164 |  292 |
+| pgcmsiv.hex  | 68 | 76 |  84 |  92 | 108 | 124 | 188 |  316 |
+| psiv.hex     | 76 | 84 |  92 | 100 | 116 | 132 | 196 |  324 |

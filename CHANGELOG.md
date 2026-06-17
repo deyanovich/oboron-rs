@@ -10,11 +10,81 @@ but note that pre-1.0 releases may not adhere strictly to all guidelines.
 [Unreleased]
 ------------
 
+
+[oboron v1.0.0-rc1] - 2026-06-16
+--------------------------------
+
+Aligns the Rust implementation with **oboron protocol spec 1.0**
+(the "rev3" rewrite) and **obcrypt 1.0.0-rc1**. oboron is now an
+authenticated-only core: the obtext is exactly the AEAD output,
+with no on-the-wire scheme marker. This release also rolls in the
+(previously unreleased) 0.10.0 extraction of the z-tier into the
+standalone `obu` crate.
+
+### Changed (Breaking)
+
+- **Schemes renamed** to the property-prefixed spec form:
+  `aasv`→`dsiv`, `apsv`→`psiv`, `aags`→`dgcmsiv`,
+  `apgs`→`pgcmsiv`. Every codec type renames with them
+  (`AasvC32`→`DsivC32`, `ApgsB64`→`PgcmsivB64`, …), as do the
+  `Scheme` variants, the per-scheme cargo features, and the
+  `<scheme>.<encoding>` format strings.
+- **No scheme marker on the wire.** The 2-byte XOR'd marker that
+  oboron appended before encoding is gone — the obtext is now the
+  text encoding of the raw AEAD output and nothing more.
+  Deterministic obtexts are correspondingly shorter and now match
+  the canonical test vectors and the other implementations. A
+  wrong scheme on `dec` fails the AEAD tag check
+  (`DecryptionFailed`) rather than a marker mismatch.
+- **`obcrypt` dependency bumped 0.2.0 → 1.0.0-rc1.**
+- **Hex-only keys.** Base64 key support is removed: the
+  `base64-keys` feature, `from_base64_key` / `key_base64` /
+  `generate_key_base64`, `HARDCODED_KEY_BASE64`, the length-86
+  routing in `MasterKey::from_string`, and the `hex2b64` binary
+  all go. Keys are 128-character hex (or 64 raw bytes).
+
+### Removed
+
+- **The `upbc` scheme.** The unauthenticated u-tier is no longer
+  part of oboron; it is specified as `upcbc` in the Oboron
+  Unauthenticated Layer and lives in the separate `obu` crate.
+  Removed: `Scheme::Upbc`, the `Upbc*` codec types, the `upbc`
+  feature, and the `upbc.*` format strings.
+- **`autodec` / automatic format detection.** Removed
+  `Omnib::autodec`, `Ob::autodec`, the top-level `autodec` /
+  `autodec_keyless` functions, and the `dec_auto` module. The
+  scheme is supplied by the caller via the format, like the key;
+  `Omnib` still selects the format per `enc` / `dec` call.
+- **`Error::SchemeMarkerMismatch` and `Error::InvalidBlockLength`**,
+  both tied to removed functionality (the wire marker and the
+  CBC u-tier).
+
 ### Added
 
-### Changed
+- **`obu` crate** — the obfuscation tier (z-tier) is now a
+  standalone crate, extracted from oboron's former `ztier`
+  module. It provides `Obz`, `Omnibz`, `ZrbcxC32/B32/B64/Hex`,
+  `Zmock1*`, `Legacy`, plus its own `generate_secret()` and the
+  `secretgen` binary, and shares no code with the authenticated
+  core. Migrate `oboron::ztier::X` to `obu::X`.
 
-### Fixed
+### Bindings
+
+- **`oboron-py` (→ 1.0.0-rc1) and `oboron-wasm`** are now pure
+  authenticated-core bindings: they no longer depend on the `obu`
+  crate, and the z-tier classes (`Obz`, `Omnibz`, `Zrbcx*`,
+  `Zmock1*`, `Legacy`) and secret generation are gone. Core codec
+  classes are renamed, and the `autodec` and base64-key methods
+  are removed. **`oboron-ffi`** drops `oboron_autodec` /
+  `oboron_autodec_keyless`.
+
+### Conformance
+
+- Verified against the canonical cross-implementation vectors at
+  <https://gitlab.com/oboron/oboron-test-vectors>: all 2656 core
+  vectors (`dsiv` / `psiv` / `dgcmsiv` / `pgcmsiv` over the four
+  encodings) reproduce (deterministic) or round-trip
+  (probabilistic) exactly.
 
 
 [oboron v0.9.0] - 2026-05-22

@@ -13,30 +13,30 @@ fn test_ob_basic_roundtrip() {
 }
 
 #[test]
-#[cfg(feature = "aasv")]
+#[cfg(feature = "dsiv")]
 fn test_ob_deterministic() {
     let key = [0u8; 64];
-    let ob = Ob::from_bytes("aasv.b64", &key).expect("Failed to create Ob with aasv");
+    let ob = Ob::from_bytes("dsiv.b64", &key).expect("Failed to create Ob with dsiv");
 
     let plaintext = "Deterministic test";
     let ot1 = ob.enc(plaintext).expect("Failed to enc");
     let ot2 = ob.enc(plaintext).expect("Failed to enc");
 
-    // Aasv is deterministic
+    // Dsiv is deterministic
     assert_eq!(ot1, ot2);
 }
 
 #[test]
-#[cfg(feature = "apsv")]
+#[cfg(feature = "psiv")]
 fn test_ob_probabilistic() {
     let key = [0u8; 64];
-    let ob = Ob::from_bytes("apsv.b64", &key).expect("Failed to create Ob with apsv");
+    let ob = Ob::from_bytes("psiv.b64", &key).expect("Failed to create Ob with psiv");
 
     let plaintext = "Probabilistic test";
     let ot1 = ob.enc(plaintext).expect("Failed to enc");
     let ot2 = ob.enc(plaintext).expect("Failed to enc");
 
-    // Apsv is probabilistic
+    // Psiv is probabilistic
     assert_ne!(ot1, ot2);
 
     // But both dec correctly
@@ -97,37 +97,21 @@ fn test_ob_format_getter() {
 }
 
 #[test]
-#[cfg(feature = "aasv")]
-fn test_ob_scheme_autodetection() {
+#[cfg(feature = "dsiv")]
+fn test_ob_scheme_mismatch_strict() {
     let key = [0u8; 64];
 
-    // Encode with aasv
-    let aasv = Ob::from_bytes("aasv.b64", &key).expect("Failed to create Ob with aasv.b64 format");
-    let ot = aasv.enc("test").expect("Failed to enc");
+    // Encode with dsiv
+    let dsiv = Ob::from_bytes("dsiv.b64", &key).expect("Failed to create Ob with dsiv.b64 format");
+    let ot = dsiv.enc("test").expect("Failed to enc");
 
-    // Decode with mock1 (different scheme, same encoding)
+    // Decoding with the matching scheme works.
+    assert_eq!(dsiv.dec(&ot).unwrap(), "test");
+
+    // But strict dec with a different scheme fails (scheme mismatch).
     let mock1 =
         Ob::from_bytes("mock1.b64", &key).expect("Failed to create Ob with mock1.b64 format");
-    let pt2 = mock1
-        .autodec(&ot)
-        .expect("Failed to dec with autodetection");
-    assert_eq!(pt2, "test");
-
-    // But strict dec fails (scheme mismatch)
     assert!(mock1.dec(&ot).is_err());
-}
-
-#[test]
-fn test_ob_autodec() {
-    let key = [0u8; 64];
-
-    // Encode with C32
-    let ob_b32 = Ob::from_bytes("mock1.c32", &key).expect("Failed to create Ob with b32");
-    let ot = ob_b32.enc("test").expect("Failed to enc");
-
-    // Dec with B64
-    let ob_b64 = Ob::from_bytes("mock1.b64", &key).expect("Failed to create Ob with b64");
-    assert_eq!(ob_b64.autodec(&ot).unwrap(), "test");
 }
 
 #[test]
@@ -176,17 +160,6 @@ fn test_ob_generic_usage() {
 
     let ot = enc_with_oboron(&ob, "generic test");
     assert!(ot.len() > 0);
-}
-
-#[cfg(feature = "base64-keys")]
-#[test]
-fn test_ob_new_autodetect_base64_during_transition() {
-    // 86-char base64 key should still work via auto-detect during the
-    // base64 → hex deprecation period.
-    let key_b64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-    let ob = Ob::new("mock1.c32", key_b64).expect("Ob::new should accept legacy base64 key");
-    let ot = ob.enc("auto-detect").expect("enc");
-    assert_eq!(ob.dec(&ot).expect("dec"), "auto-detect");
 }
 
 #[test]

@@ -7,6 +7,35 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 
+## [1.0.0-rc1] - 2026-06-16
+
+Catches the Python bindings up to oboron core 1.0.0-rc1
+(authenticated-only, protocol spec 1.0). Pure core: the
+unauthenticated / obfuscation (z-tier) layer is no longer bound
+here.
+
+### Changed
+
+- **Schemes renamed** to the property-prefixed form: codec
+  classes `AasvC32`→`DsivC32`, `ApsvB64`→`PsivB64`,
+  `AagsHex`→`DgcmsivHex`, `ApgsC32`→`PgcmsivC32`, and the
+  matching `oboron.formats.*` constants.
+
+### Removed
+
+- **The z-tier / obu surface** — the `oboron.ztier` submodule and
+  the `Obz` / `Omnibz` / `Zrbcx*` / `Zmock1*` / `Legacy` classes,
+  plus `generate_secret()` / `generate_secret_bytes()`. The
+  unauthenticated and obfuscation schemes live in the separate
+  `obu` package; `oboron-py` no longer depends on the `obu` crate.
+- **The `upbc` codec classes** (`UpbcC32`/etc.).
+- **`autodec` / `autodec_keyless`** — the module functions and the
+  `Ob` / `Omnib` methods. The scheme is supplied by the caller via
+  the format.
+- **Base64 keys** — `from_base64_key` / `key_base64` and the
+  `base64-keys` feature. Keys are 128-character hex.
+
+
 ## [0.9.0] - 2026-05-22
 
 First PyPI publication of `oboron-py` under the harmonized

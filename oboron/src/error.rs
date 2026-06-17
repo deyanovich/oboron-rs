@@ -48,13 +48,6 @@ pub enum Error {
     // -----------------
     #[error("decryption failed")]
     DecryptionFailed,
-    #[error("invalid block length")]
-    InvalidBlockLength,
-    #[error("decoding failed: scheme marker mismatch")]
-    SchemeMarkerMismatch,
-    #[cfg(feature = "legacy")]
-    #[error("legacy fallback produced invalid output (likely encoding mismatch)")]
-    InvalidLegacyOutput,
 }
 
 impl From<hex::FromHexError> for Error {
@@ -67,14 +60,13 @@ impl From<obcrypt::Error> for Error {
     fn from(e: obcrypt::Error) -> Self {
         match e {
             obcrypt::Error::InvalidKeyLength => Error::InvalidKeyLength,
+            obcrypt::Error::InvalidHex => Error::InvalidHex,
             obcrypt::Error::UnknownScheme => Error::UnknownScheme,
-            obcrypt::Error::SchemeMarkerMismatch => Error::SchemeMarkerMismatch,
             obcrypt::Error::EncryptionFailed => Error::EncryptionFailed,
             obcrypt::Error::EmptyPlaintext => Error::EmptyPlaintext,
             obcrypt::Error::DecryptionFailed => Error::DecryptionFailed,
             obcrypt::Error::EmptyPayload => Error::EmptyPayload,
             obcrypt::Error::PayloadTooShort => Error::PayloadTooShort,
-            obcrypt::Error::InvalidBlockLength => Error::InvalidBlockLength,
             // obcrypt::Error is #[non_exhaustive]; route unknown variants to a generic decrypt failure.
             _ => Error::DecryptionFailed,
         }

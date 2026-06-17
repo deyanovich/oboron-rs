@@ -1,0 +1,63 @@
+[package]
+name = "oboron-wasm"
+# Tracks the oboron Rust crate: 1.0.0-rc1 aligns with oboron protocol
+# spec 1.0 (authenticated-only). Ships to npm via wasm-pack; the
+# unauthenticated/obfuscation (obu) layer is a separate package and is
+# NOT bound here.
+version = "1.0.0-rc1"
+edition = "2021"
+rust-version = "1.77.0"
+authors = ["Bojan Đuričković"]
+license = "MIT OR Apache-2.0"
+repository = "https://gitlab.com/oboron/oboron-rs"
+homepage = "https://oboron.org/"
+documentation = "https://oboron.org/"
+description = "WebAssembly/JS bindings for oboron — string-in/string-out authenticated symmetric encryption + encoding (Dgcmsiv, Dsiv, Pgcmsiv, Psiv)."
+keywords = ["wasm", "encryption", "encoding", "cryptography", "oboron"]
+categories = ["cryptography", "wasm"]
+readme = "README.md"
+# Not a crates.io publication target — this crate ships to npm via
+# wasm-pack (see README), not to crates.io.
+publish = false
+
+[lib]
+# `cdylib` is what wasm-bindgen / wasm-pack consume; `rlib` keeps the
+# crate usable as a normal Rust library (e.g. the wasm-bindgen-test
+# suite in `tests/`).
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Default: the four authenticated core schemes, mock schemes for
+# testing, and keyless constructors.
+default = ["secure-schemes", "mock", "keyless"]
+
+# Aggregate: the four authenticated core schemes.
+secure-schemes = ["dgcmsiv", "pgcmsiv", "dsiv", "psiv"]
+
+# Individual schemes — each forwards to the oboron core feature that
+# gates the wrapper code there, and is also used as a local cfg gate
+# in src/lib.rs to omit the per-scheme JS classes when disabled.
+# Without the local flag the binding for that scheme is silently
+# omitted from the generated module.
+dgcmsiv = ["oboron/dgcmsiv"]
+pgcmsiv = ["oboron/pgcmsiv"]
+dsiv = ["oboron/dsiv"]
+psiv = ["oboron/psiv"]
+
+# Mock1/Mock2 (no encryption; testing only).
+mock = ["oboron/mock"]
+
+# Hardcoded-key constructors (`keyless()` static factories) for
+# testing. Pulled in by default.
+keyless = ["oboron/keyless"]
+
+[dependencies]
+oboron = { path = "../oboron", default-features = false }
+wasm-bindgen.workspace = true
+
+# Randomness on wasm32 flows through the oboron getrandom "js" backend
+# (declared in its own manifest under the wasm32 target), so no
+# getrandom dependency is needed here.
+
+[dev-dependencies]
+wasm-bindgen-test.workspace = true

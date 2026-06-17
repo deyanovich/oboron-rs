@@ -1,7 +1,7 @@
 """Format string constants for Oboron. 
 
 All constants follow the pattern:  {SCHEME}_{ENCODING}
-- Schemes: AAGS, AASV, APGS, APSV, UPBC, ZRBCX, LEGACY, MOCK1, MOCK2
+- Schemes: DGCMSIV, DSIV, PGCMSIV, PSIV, MOCK1, MOCK2
 - Encodings:
   - B32 (RFC 4648 base32),
   - B64 (RFC 4648 base64url),
@@ -12,45 +12,33 @@ Example:
     >>> from oboron import formats
     >>> from oboron import Ob
     >>> 
-    >>> ob = Ob(formats.AASV_B64, key)
+    >>> ob = Ob(formats.DSIV_B64, key)
     >>> ot = ob.enc("secret")
 """
 
-# aags - deterministic AES-GCM-SIV (secure and authenticated)
-AAGS_B32: str = "aags.b32"
-AAGS_B64: str = "aags.b64"
-AAGS_C32: str = "aags.c32"
-AAGS_HEX: str = "aags.hex"
+# dgcmsiv - deterministic AES-GCM-SIV (secure and authenticated)
+DGCMSIV_B32: str = "dgcmsiv.b32"
+DGCMSIV_B64: str = "dgcmsiv.b64"
+DGCMSIV_C32: str = "dgcmsiv.c32"
+DGCMSIV_HEX: str = "dgcmsiv.hex"
 
-# aasv - deterministic AES-SIV (secure and authenticated, nonce-misuse resistant)
-AASV_B32: str = "aasv.b32"
-AASV_B64: str = "aasv.b64"
-AASV_C32: str = "aasv.c32"
-AASV_HEX: str = "aasv.hex"
+# dsiv - deterministic AES-SIV (secure and authenticated, nonce-misuse resistant)
+DSIV_B32: str = "dsiv.b32"
+DSIV_B64: str = "dsiv.b64"
+DSIV_C32: str = "dsiv.c32"
+DSIV_HEX: str = "dsiv.hex"
 
-# apgs - probabilistic AES-GCM-SIV (secure and authenticated)
-APGS_B32: str = "apgs.b32"
-APGS_B64: str = "apgs.b64"
-APGS_C32: str = "apgs.c32"
-APGS_HEX: str = "apgs.hex"
+# pgcmsiv - probabilistic AES-GCM-SIV (secure and authenticated)
+PGCMSIV_B32: str = "pgcmsiv.b32"
+PGCMSIV_B64: str = "pgcmsiv.b64"
+PGCMSIV_C32: str = "pgcmsiv.c32"
+PGCMSIV_HEX: str = "pgcmsiv.hex"
 
-# apsv - probabilistic AES-SIV (secure and authenticated)
-APSV_B32: str = "apsv.b32"
-APSV_B64: str = "apsv.b64"
-APSV_C32: str = "apsv.c32"
-APSV_HEX: str = "apsv.hex"
-
-# upbc - probabilistic AES-CBC (secure but not authenticated)
-UPBC_B32: str = "upbc.b32"
-UPBC_B64: str = "upbc.b64"
-UPBC_C32: str = "upbc.c32"
-UPBC_HEX: str = "upbc.hex"
-
-# zrbcx - deterministic AES-CBC (insecure - obfuscation only)
-ZRBCX_B32: str = "zrbcx.b32"
-ZRBCX_B64: str = "zrbcx.b64"
-ZRBCX_C32: str = "zrbcx.c32"
-ZRBCX_HEX: str = "zrbcx.hex"
+# psiv - probabilistic AES-SIV (secure and authenticated)
+PSIV_B32: str = "psiv.b32"
+PSIV_B64: str = "psiv.b64"
+PSIV_C32: str = "psiv.c32"
+PSIV_HEX: str = "psiv.hex"
 
 # Testing schemes (no encryption)
 MOCK1_B32: str = "mock1.b32"
@@ -63,24 +51,15 @@ MOCK2_B64: str = "mock2.b64"
 MOCK2_C32: str = "mock2.c32"
 MOCK2_HEX: str = "mock2.hex"
 
-# Legacy (legacy - insecure - obfuscation only; backwards compatibility only - use zrbcx instead)
-LEGACY: str = "legacy"
-
 __all__ = [
-    # aags
-    "AAGS_B32", "AAGS_B64", "AAGS_C32", "AAGS_HEX",
-    # aasv
-    "AASV_B32", "AASV_B64", "AASV_C32", "AASV_HEX",
-    # apgs
-    "APGS_B32", "APGS_B64", "APGS_C32", "APGS_HEX",
-    # apsv
-    "APSV_B32", "APSV_B64", "APSV_C32", "APSV_HEX",
-    # zrbcx
-    "ZRBCX_B32", "ZRBCX_B64", "ZRBCX_C32", "ZRBCX_HEX",
-    # upbc
-    "UPBC_B32", "UPBC_B64", "UPBC_C32", "UPBC_HEX",
-    # Legacy
-    "LEGACY",
+    # dgcmsiv
+    "DGCMSIV_B32", "DGCMSIV_B64", "DGCMSIV_C32", "DGCMSIV_HEX",
+    # dsiv
+    "DSIV_B32", "DSIV_B64", "DSIV_C32", "DSIV_HEX",
+    # pgcmsiv
+    "PGCMSIV_B32", "PGCMSIV_B64", "PGCMSIV_C32", "PGCMSIV_HEX",
+    # psiv
+    "PSIV_B32", "PSIV_B64", "PSIV_C32", "PSIV_HEX",
     # Testing
     "MOCK1_B32", "MOCK1_B64", "MOCK1_C32", "MOCK1_HEX",
     "MOCK2_B32", "MOCK2_B64", "MOCK2_C32", "MOCK2_HEX",

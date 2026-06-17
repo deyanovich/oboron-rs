@@ -1,15 +1,19 @@
-//! This library provides encryption-based encoding to various text schemes
-//! using AES encryption with multiple scheme options.
+//! oboron is a string-in / string-out **authenticated** symmetric
+//! encryption layer for UTF-8 text: it encrypts a string under an
+//! AES-SIV or AES-GCM-SIV scheme and encodes the result to compact
+//! obtext (Crockford base32, base32, base64url, or hex). Every scheme
+//! is authenticated; the scheme is supplied by the caller (the obtext
+//! carries no marker), and keys are 128-character hex.
 //!
 //! # Quick Start
 //!
 //! ```rust
 //! # fn main() -> Result<(), oboron::Error> {
-//! # #[cfg(feature = "aasv")]
+//! # #[cfg(feature = "dsiv")]
 //! # {
-//! use oboron::{AasvC32, ObtextCodec};
+//! use oboron::{DsivC32, ObtextCodec};
 //! let key = oboron::generate_key(); // get key
-//! let ob = AasvC32::new(&key)?;     // instantiate ObtextCodec (cipher+encoder)
+//! let ob = DsivC32::new(&key)?;     // instantiate ObtextCodec (cipher+encoder)
 //! let ot = ob.enc("secret data")?;  // get obtext (encoded ciphertext)
 //! # }
 //! # Ok(())
@@ -29,21 +33,21 @@
 //! Examples:
 //! ```rust
 //! # fn main() -> Result<(), oboron::Error> {
-//! # #[cfg(feature = "aasv")]
+//! # #[cfg(feature = "dsiv")]
 //! # {
 //! # use oboron;
 //! # let key = oboron::generate_key();
 //! # let omb = oboron::Omnib::new(&key)?;
 //! // Operations: data, format
-//! let ot = omb.enc("plaintext", "aasv.b64")?;
-//! omb.dec(&ot, "aasv.b64")?;
+//! let ot = omb.enc("plaintext", "dsiv.b64")?;
+//! omb.dec(&ot, "dsiv.b64")?;
 //!
 //! // Constructors: format, key
-//! oboron::Ob::new("aasv.b64", &key)?;
+//! oboron::Ob::new("dsiv.b64", &key)?;
 //!
 //! // Convenience functions: data, format, key
-//! let ot = oboron::enc("plaintext", "aasv.b64", &key)?;
-//! oboron::dec(&ot, "aasv.b64", &key)?;
+//! let ot = oboron::enc("plaintext", "dsiv.b64", &key)?;
+//! oboron::dec(&ot, "dsiv.b64", &key)?;
 //! # }
 //! # Ok(())
 //! # }
@@ -59,15 +63,15 @@
 //!
 //! ```rust
 //! # fn main() -> Result<(), oboron::Error> {
-//! # #[cfg(feature = "aasv")]
+//! # #[cfg(feature = "dsiv")]
 //! # {
-//! # use oboron::{AasvC32, AasvB64, ObtextCodec};
+//! # use oboron::{DsivC32, DsivB64, ObtextCodec};
 //! # let key = oboron::generate_key();
-//! let aasv = AasvC32::new(&key)?;      // aasv.c32 format (Crockford base32)
-//! let aasv_b64 = AasvB64::new(&key)?;  // aasv.b64 format (base64url)
+//! let dsiv = DsivC32::new(&key)?;      // dsiv.c32 format (Crockford base32)
+//! let dsiv_b64 = DsivB64::new(&key)?;  // dsiv.b64 format (base64url)
 //!
-//! let ot = aasv.enc("hello")?;
-//! let pt2 = aasv.dec(&ot)?;
+//! let ot = dsiv.enc("hello")?;
+//! let pt2 = dsiv.dec(&ot)?;
 //! # }
 //! # Ok(())
 //! # }
@@ -83,18 +87,18 @@
 //!
 //! ```rust
 //! # fn main() -> Result<(), oboron::Error> {
-//! # #[cfg(feature = "aasv")]
+//! # #[cfg(feature = "dsiv")]
 //! # {
 //! # use oboron::{Ob, ObtextCodec};
 //!  # let key = oboron::generate_key();
 //! // Format chosen at runtime
-//! let mut ob = Ob::new("aasv.b64", &key)?;
+//! let mut ob = Ob::new("dsiv.b64", &key)?;
 //!
 //! let ot = ob.enc("hello")?;
 //! let pt2 = ob.dec(&ot)?;
 //!
 //! // Can change format if needed
-//! ob.set_format("aasv.hex")?;
+//! ob.set_format("dsiv.hex")?;
 //! # }
 //! # Ok(())
 //! # }
@@ -110,33 +114,33 @@
 //!
 //! ```rust
 //! # fn main() -> Result<(), oboron::Error> {
-//! # #[cfg(feature = "aasv")]
+//! # #[cfg(feature = "dsiv")]
 //! # {
 //! # use oboron::Omnib;
 //! # let key = oboron::generate_key();
 //! let omb = Omnib::new(&key)?;
 //!
 //! // Encode to different formats
-//! let ot_b32 = omb.enc("data", "aasv.c32")?;
-//! let ot_b64 = omb.enc("data", "aasv.b64")?;
-//! let ot_hex = omb.enc("data", "aasv.hex")?;
+//! let ot_c32 = omb.enc("data", "dsiv.c32")?;
+//! let ot_b64 = omb.enc("data", "dsiv.b64")?;
+//! let ot_hex = omb.enc("data", "dsiv.hex")?;
 //!
-//! // Decode with automatic format detection
-//! let pt2 = omb.autodec(&ot_b64)?;
+//! // Decode with the matching format (the scheme is supplied, not detected)
+//! let pt2 = omb.dec(&ot_b64, "dsiv.b64")?;
 //! # }
 //! # Ok(())
 //! # }
 //! ```
 //!
-//! - Use case: Working with multiple formats or unknown formats
+//! - Use case: Working with multiple formats in one context
 //! - Performance: Small overhead (format parsing per operation)
-//! - Flexibility: Maximum - handles any format, autodetects on dec
+//! - Flexibility: Maximum - handles any format on a per-operation basis
 //!
 //! # Quick Reference
 //!
 //! | Type            | Format             | Use Case          | Performance         |
 //! |-----------------|--------------------|-------------------|---------------------|
-//! | `AasvC32`, etc. | Compile-time       | Known format      | Fastest (zero-cost) |
+//! | `DsivC32`, etc. | Compile-time       | Known format      | Fastest (zero-cost) |
 //! | `Ob`            | Runtime, mutable   | Config-driven     | Near-zero overhead  |
 //! | `Omnib`       | Per-operation      | Multiple formats  | Small overhead      |
 //!
@@ -146,21 +150,21 @@
 //!
 //! ```rust
 //! # fn main() -> Result<(), oboron::Error> {
-//! # #[cfg(all(feature = "aasv", feature = "apgs"))]
+//! # #[cfg(all(feature = "dsiv", feature = "pgcmsiv"))]
 //! # {
 //! # use oboron::ObtextCodec;
 //! # use oboron;
 //! # let key = oboron::generate_key();
 //! // Fixed format types (best performance for multiple operations with same format)
-//! let aasv = oboron::AasvC32::new(&key)?;  // "aasv.c32" fixed-format ObtextCodec instance
-//! let apgs = oboron::ApgsC32::new(&key)?;  // "apgs.c32" fixed-format ObtextCodec instance
+//! let dsiv = oboron::DsivC32::new(&key)?;  // "dsiv.c32" fixed-format ObtextCodec instance
+//! let pgcmsiv = oboron::PgcmsivC32::new(&key)?;  // "pgcmsiv.c32" fixed-format ObtextCodec instance
 //!
-//! let ot_aasv = aasv.enc("data1")?;
-//! let ot_apgs = apgs.enc("data2")?;
+//! let ot_dsiv = dsiv.enc("data1")?;
+//! let ot_pgcmsiv = pgcmsiv.enc("data2")?;
 //!
 //! // Decoding
-//! let pt1 = aasv.dec(&ot_aasv)?;  // Decodes successfully
-//! let pt2 = apgs.dec(&ot_apgs)?;
+//! let pt1 = dsiv.dec(&ot_dsiv)?;  // Decodes successfully
+//! let pt2 = pgcmsiv.dec(&ot_pgcmsiv)?;
 //! assert_eq!(pt1, "data1");
 //! assert_eq!(pt2, "data2");
 //! # }
@@ -170,15 +174,15 @@
 //!
 //! # Encryption Schemes
 //!
-//! - Authenticated:
-//!   - `Aags`: deterministic AES-GCM-SIV
-//!   - `Aasv`: deterministic AES-SIV (nonce-misuse resistant)
-//!   - `Apgs`: probabilistic AES-GCM-SIV
-//!   - `Apsv`: probabilistic AES-SIV
-//! - Un-authenticated:
-//!   - `Upbc`: probabilistic AES-CBC
-//! - Insecure (obfuscation only):
-//!   - `Zrbcx`: deterministic AES-CBC with constant IV
+//! All four core schemes are authenticated:
+//!   - `Dgcmsiv`: deterministic AES-GCM-SIV
+//!   - `Dsiv`: deterministic AES-SIV (nonce-misuse resistant)
+//!   - `Pgcmsiv`: probabilistic AES-GCM-SIV
+//!   - `Psiv`: probabilistic AES-SIV
+//!
+//! Unauthenticated (`upcbc`) and obfuscation (`zdcbc`) schemes are not
+//! part of oboron — they live in the separate
+//! [`obu`](https://gitlab.com/oboron/obu-rs) crate.
 //!
 //! Testing/Demo only schemes using no encryption (`mock` feature group):
 //! - `Mock1`: Identity
@@ -192,22 +196,22 @@
 //!
 //! # The `ObtextCodec` Trait
 //!
-//! All types (`Ob`, `AasvC32`, `ApsvB64`, etc.) except `Omnib` implement the `ObtextCodec` trait,
+//! All types (`Ob`, `DsivC32`, `PsivB64`, etc.) except `Omnib` implement the `ObtextCodec` trait,
 //! ```rust
 //! # fn main() -> Result<(), oboron::Error> {
-//! # #[cfg(feature = "aasv")]
+//! # #[cfg(feature = "dsiv")]
 //! # {
-//! # use oboron::{ObtextCodec, AasvC32, Ob};
+//! # use oboron::{ObtextCodec, DsivC32, Ob};
 //! # let key = oboron::generate_key();
 //! fn process<O: ObtextCodec>(ob: &O, data: &str) -> Result<String, oboron::Error> {
 //!     let ot = ob.enc(data)?;
 //!     ob.dec(&ot)
 //! }
 //!
-//! let aasv = AasvC32::new(&key)?;
-//! let ob = Ob::new("aasv.c32", &key)?;
+//! let dsiv = DsivC32::new(&key)?;
+//! let ob = Ob::new("dsiv.c32", &key)?;
 //!
-//! process(&aasv, "hello")?;
+//! process(&dsiv, "hello")?;
 //! process(&ob, "hello")?;
 //! # }
 //! # Ok(())
@@ -220,7 +224,6 @@ mod base32;
 mod codec;
 mod constants;
 mod dec;
-mod dec_auto;
 mod enc;
 mod encoding;
 mod error;
@@ -230,26 +233,12 @@ mod masterkey;
 mod ob;
 mod omnib;
 mod scheme;
-#[cfg(any(feature = "zrbcx", feature = "legacy", feature = "mock"))]
-pub mod ztier;
 
 // Re-export public types and constants
 pub use constants::{HARDCODED_KEY_BYTES, HARDCODED_KEY_HEX};
-#[cfg(feature = "base64-keys")]
-#[deprecated(
-    since = "0.7.1",
-    note = "use HARDCODED_KEY_HEX instead; base64 key support will be removed before oboron 1.0"
-)]
-#[allow(deprecated)]
-pub use constants::HARDCODED_KEY_BASE64;
 pub use error::Error;
 
 pub(crate) use masterkey::MasterKey;
-
-#[cfg(feature = "zrbcx")]
-pub(crate) use ztier::{decrypt_zrbcx, encrypt_zrbcx};
-#[cfg(feature = "mock")]
-pub(crate) use ztier::{decrypt_zmock1, encrypt_zmock1};
 
 pub use keygen::generate_key;
 pub use keygen::generate_key_bytes;
@@ -259,29 +248,6 @@ pub use keygen::generate_key_bytes;
 )]
 #[allow(deprecated)]
 pub use keygen::generate_key_hex;
-#[cfg(feature = "base64-keys")]
-#[deprecated(
-    since = "0.7.1",
-    note = "use generate_key() (hex) instead; base64 key support will be removed before oboron 1.0"
-)]
-#[allow(deprecated)]
-pub use keygen::generate_key_base64;
-pub use keygen::generate_secret;
-pub use keygen::generate_secret_bytes;
-#[deprecated(
-    since = "0.7.1",
-    note = "use generate_secret() — hex is now the default secret format"
-)]
-#[allow(deprecated)]
-pub use keygen::generate_secret_hex;
-#[cfg(feature = "base64-keys")]
-#[deprecated(
-    since = "0.7.1",
-    note = "use generate_secret() (hex) instead; base64 support will be removed before oboron 1.0"
-)]
-#[allow(deprecated)]
-pub use keygen::generate_secret_base64;
-
 // Re-export core types
 pub use encoding::Encoding;
 pub use format::Format;
@@ -300,59 +266,39 @@ pub use codec::{new, new_with_format, ObAny, ObtextCodec};
 pub use codec::{new_keyless, new_keyless_with_format};
 
 // Conditionally export format string constants (scheme+encoding combinations)
-#[cfg(feature = "aags")]
-pub use constants::aags_constants::*;
-#[cfg(feature = "aasv")]
-pub use constants::aasv_constants::*;
-#[cfg(feature = "apgs")]
-pub use constants::apgs_constants::*;
-#[cfg(feature = "apsv")]
-pub use constants::apsv_constants::*;
-#[cfg(feature = "upbc")]
-pub use constants::upbc_constants::*;
-#[cfg(feature = "zrbcx")]
-pub use constants::zrbcx_constants::*;
-// Legacy
-#[cfg(feature = "legacy")]
-pub use constants::legacy_constants::*;
+#[cfg(feature = "dgcmsiv")]
+pub use constants::dgcmsiv_constants::*;
+#[cfg(feature = "dsiv")]
+pub use constants::dsiv_constants::*;
+#[cfg(feature = "pgcmsiv")]
+pub use constants::pgcmsiv_constants::*;
+#[cfg(feature = "psiv")]
+pub use constants::psiv_constants::*;
 // Testing
 #[cfg(feature = "mock")]
 pub use constants::mock_constants::*;
-#[cfg(feature = "mock")]
-pub use constants::zmock_constants::*;
 
-#[cfg(feature = "aags")]
-pub use format::aags_formats::*;
-#[cfg(feature = "aasv")]
-pub use format::aasv_formats::*;
-#[cfg(feature = "apgs")]
-pub use format::apgs_formats::*;
-#[cfg(feature = "apsv")]
-pub use format::apsv_formats::*;
-#[cfg(feature = "upbc")]
-pub use format::upbc_formats::*;
-#[cfg(feature = "zrbcx")]
-pub use format::zrbcx_formats::*;
-// Legacy
-#[cfg(feature = "legacy")]
-pub use format::legacy_formats::*;
+#[cfg(feature = "dgcmsiv")]
+pub use format::dgcmsiv_formats::*;
+#[cfg(feature = "dsiv")]
+pub use format::dsiv_formats::*;
+#[cfg(feature = "pgcmsiv")]
+pub use format::pgcmsiv_formats::*;
+#[cfg(feature = "psiv")]
+pub use format::psiv_formats::*;
 // Testing
 #[cfg(feature = "mock")]
 pub use format::mock_formats::*;
-#[cfg(feature = "mock")]
-pub use format::zmock_formats::*;
 
 // Conditionally export format-specific structs (scheme+encoding combinations)
-#[cfg(feature = "aags")]
-pub use codec::{AagsB32, AagsB64, AagsC32, AagsHex};
-#[cfg(feature = "aasv")]
-pub use codec::{AasvB32, AasvB64, AasvC32, AasvHex};
-#[cfg(feature = "apgs")]
-pub use codec::{ApgsB32, ApgsB64, ApgsC32, ApgsHex};
-#[cfg(feature = "apsv")]
-pub use codec::{ApsvB32, ApsvB64, ApsvC32, ApsvHex};
-#[cfg(feature = "upbc")]
-pub use codec::{UpbcB32, UpbcB64, UpbcC32, UpbcHex};
+#[cfg(feature = "dgcmsiv")]
+pub use codec::{DgcmsivB32, DgcmsivB64, DgcmsivC32, DgcmsivHex};
+#[cfg(feature = "dsiv")]
+pub use codec::{DsivB32, DsivB64, DsivC32, DsivHex};
+#[cfg(feature = "pgcmsiv")]
+pub use codec::{PgcmsivB32, PgcmsivB64, PgcmsivC32, PgcmsivHex};
+#[cfg(feature = "psiv")]
+pub use codec::{PsivB32, PsivB64, PsivC32, PsivHex};
 // Testing
 #[cfg(feature = "mock")]
 pub use codec::{Mock1B32, Mock1B64, Mock1C32, Mock1Hex};
@@ -369,14 +315,14 @@ pub use omnib::Omnib;
 /// use oboron::prelude::*;
 /// ```
 pub mod prelude {
-    #[cfg(feature = "aags")]
-    pub use crate::{AagsB32, AagsB64, AagsC32, AagsHex};
-    #[cfg(feature = "aasv")]
-    pub use crate::{AasvB32, AasvB64, AasvC32, AasvHex};
-    #[cfg(feature = "apgs")]
-    pub use crate::{ApgsB32, ApgsB64, ApgsC32, ApgsHex};
-    #[cfg(feature = "apsv")]
-    pub use crate::{ApsvB32, ApsvB64, ApsvC32, ApsvHex};
+    #[cfg(feature = "dgcmsiv")]
+    pub use crate::{DgcmsivB32, DgcmsivB64, DgcmsivC32, DgcmsivHex};
+    #[cfg(feature = "dsiv")]
+    pub use crate::{DsivB32, DsivB64, DsivC32, DsivHex};
+    #[cfg(feature = "pgcmsiv")]
+    pub use crate::{PgcmsivB32, PgcmsivB64, PgcmsivC32, PgcmsivHex};
+    #[cfg(feature = "psiv")]
+    pub use crate::{PsivB32, PsivB64, PsivC32, PsivHex};
     pub use crate::{Encoding, Error, Format, ObtextCodec, Scheme};
     pub use crate::{Ob, Omnib};
 }
@@ -406,11 +352,11 @@ pub mod prelude {
 ///
 /// ```rust
 /// # fn main() -> Result<(), oboron::Error> {
-/// # #[cfg(feature = "aasv")]
+/// # #[cfg(feature = "dsiv")]
 /// # {
 /// # use oboron;
 /// # let key = oboron::generate_key();
-/// let ot = oboron::enc("secret data", "aasv.b64", &key)?;
+/// let ot = oboron::enc("secret data", "dsiv.b64", &key)?;
 /// # }
 /// # Ok(())
 /// # }
@@ -428,10 +374,10 @@ pub fn enc(plaintext: &str, format: &str, key: &str) -> Result<String, Error> {
 ///
 /// ```rust
 /// # fn main() -> Result<(), oboron::Error> {
-/// # #[cfg(feature = "aasv")]
+/// # #[cfg(feature = "dsiv")]
 /// # {
 /// # use oboron;
-/// let ot = oboron::enc_keyless("test data", "aasv.b64")?;
+/// let ot = oboron::enc_keyless("test data", "dsiv.b64")?;
 /// # }
 /// # Ok(())
 /// # }
@@ -453,12 +399,12 @@ pub fn enc_keyless(plaintext: &str, format: &str) -> Result<String, Error> {
 ///
 /// ```rust
 /// # fn main() -> Result<(), oboron::Error> {
-/// # #[cfg(feature = "aasv")]
+/// # #[cfg(feature = "dsiv")]
 /// # use oboron;
 /// # {
 /// # let key = oboron::generate_key();
-/// # let ot = oboron::enc("test123", "aasv.b64", &key)?;
-/// let pt2 = oboron::dec(&ot, "aasv.b64", &key)?;
+/// # let ot = oboron::enc("test123", "dsiv.b64", &key)?;
+/// let pt2 = oboron::dec(&ot, "dsiv.b64", &key)?;
 /// # assert_eq!(pt2, "test123");
 /// # }
 /// # Ok(())
@@ -477,11 +423,11 @@ pub fn dec(obtext: &str, format: &str, key: &str) -> Result<String, Error> {
 ///
 /// ```rust
 /// # fn main() -> Result<(), oboron::Error> {
-/// # #[cfg(feature = "aasv")]
+/// # #[cfg(feature = "dsiv")]
 /// # {
 /// # use oboron;
-/// # let ot = oboron::enc_keyless("test", "aasv.b64")?;
-/// let pt2 = oboron::dec_keyless(&ot, "aasv.b64")?;
+/// # let ot = oboron::enc_keyless("test", "dsiv.b64")?;
+/// let pt2 = oboron::dec_keyless(&ot, "dsiv.b64")?;
 /// # assert_eq!(pt2, "test");
 /// # }
 /// # Ok(())
@@ -490,55 +436,4 @@ pub fn dec(obtext: &str, format: &str, key: &str) -> Result<String, Error> {
 #[cfg(feature = "keyless")]
 pub fn dec_keyless(obtext: &str, format: &str) -> Result<String, Error> {
     Omnib::new_keyless()?.dec(obtext, format)
-}
-
-/// Decode+decrypt obtext with automatic format detection.
-///
-/// Automatically detects both the scheme and encoding used.
-/// This is a convenience wrapper around [`Omnib::autodec`].
-///
-/// # Parameter Order
-/// `(data, key)` - format is autodetected
-///
-/// # Examples
-///
-/// ```rust
-/// # fn main() -> Result<(), oboron::Error> {
-/// # #[cfg(feature = "aasv")]
-/// # {
-/// # use oboron;
-/// # let key = oboron::generate_key();
-/// # let ot = oboron::enc("secret", "aasv.b64", &key)?;
-/// let pt2 = oboron::autodec(&ot, &key)?;  // Format autodetected, including encoding
-/// # assert_eq!(pt2, "secret");
-/// # }
-/// # Ok(())
-/// # }
-/// ```
-pub fn autodec(obtext: &str, key: &str) -> Result<String, Error> {
-    Omnib::new(key)?.autodec(obtext)
-}
-
-/// Decode+decrypt obtext with automatic format detection using the hardcoded key (testing only).
-///
-/// # Parameter Order
-/// `(data)` - both format and key are implicit
-///
-/// # Examples
-///
-/// ```rust
-/// # fn main() -> Result<(), oboron::Error> {
-/// # #[cfg(feature = "aasv")]
-/// # {
-/// # use oboron;
-/// # let ot = oboron::enc_keyless("test", "mock1.b64")?;
-/// let pt2 = oboron::autodec_keyless(&ot)?; // Autodetect format; use hardcoded key
-/// # assert_eq!(pt2, "test");
-/// # }
-/// # Ok(())
-/// # }
-/// ```
-#[cfg(feature = "keyless")]
-pub fn autodec_keyless(obtext: &str) -> Result<String, Error> {
-    Omnib::new_keyless()?.autodec(obtext)
 }

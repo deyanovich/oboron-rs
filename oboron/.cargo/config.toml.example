@@ -1,0 +1,47 @@
+# Example .cargo/config.toml for projects depending on oboron.
+#
+# The GCM-SIV schemes (aags, apgs) hash with POLYVAL, and every
+# a-tier scheme runs AES. Recent x86-64 CPUs expose wide vector
+# instructions for both (VAES, VPCLMULQDQ), but the RustCrypto
+# backends only emit those wide paths when compiled with the
+# matching target features. A default build does NOT select them
+# at runtime, so encryption leaves 12-33% on the table.
+#
+# `target-cpu` / `target-feature` are rustc codegen flags, not
+# Cargo.toml profile keys — a library cannot set them for you.
+# Place this file at `.cargo/config.toml` in YOUR project (the one
+# building the final binary or image), then drop the `.example`
+# suffix. NOTE: the RUSTFLAGS env var, if set, OVERRIDES (does not
+# merge with) the rustflags below — use one mechanism, not both.
+
+# ---------------------------------------------------------------
+# Option A — build host == run host (dev machine, or CI that builds
+# on the same instance class it deploys to). Fastest; tunes for the
+# exact CPU doing the compile.
+# ---------------------------------------------------------------
+[build]
+rustflags = ["-C", "target-cpu=native"]
+
+# ---------------------------------------------------------------
+# Option B — distributed / Docker images run on heterogeneous hosts.
+# Do NOT use `native`: it bakes in the BUILD host's microarch, and a
+# run host lacking those instructions aborts with SIGILL (illegal
+# instruction) — there is no graceful fallback. Pin an explicit
+# floor every run host is guaranteed to support instead. VAES and
+# VPCLMULQDQ sit ABOVE the common x86-64-v3 baseline, so assert them
+# explicitly. Comment out Option A and use one of these:
+#
+# [build]
+# rustflags = ["-C", "target-feature=+aes,+vaes,+vpclmulqdq,+avx2"]
+#
+# or, equivalently, a named microarchitecture level:
+#
+# [build]
+# rustflags = ["-C", "target-cpu=x86-64-v4"]
+
+# ---------------------------------------------------------------
+# Scoping to a single target (so cross-compiles don't inherit the
+# flags) is also valid — replace [build] with, e.g.:
+#
+# [target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "target-cpu=native"]

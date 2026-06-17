@@ -3,16 +3,12 @@
 Side-by-side benchmark of `oboron` before and after the refactor that
 moves the cryptographic core out into a separate `obcrypt-rs` crate.
 
-The refactor keeps obtext encoding, format-string parsing, UTF-8
-validation, and z-tier inside `oboron`; only the byte-level crypto
-(per-scheme encrypt/decrypt for `a`-tier and `u`-tier) is delegated to
-`obcrypt`. Framing (the 2-byte scheme marker XOR'd with the first
-ciphertext byte) is applied inline in oboron's `enc_to_format` /
-`dec_from_format` / `dec_any_scheme` and in the `codec.rs`
-static-dispatch macros — both call `obcrypt::schemes::*::{encrypt,
-decrypt}` directly rather than going through obcrypt's framed
-`encrypt_into` / `decrypt_into`, because the framed APIs add a small
-amount of indirection that shows up on this hot path even with LTO.
+The refactor keeps obtext encoding, format-string parsing, and UTF-8
+validation inside `oboron`; only the byte-level crypto (per-scheme
+encrypt/decrypt for the authenticated schemes) is delegated
+to `obcrypt`. oboron's `enc_to_format` / `dec_from_format` and the
+`codec.rs` static-dispatch macros call `obcrypt::schemes::*::{encrypt,
+decrypt}` directly.
 
 ## Build profile
 
@@ -46,7 +42,7 @@ sides of the comparison.
   --sample-size 30`.
 - 16-byte plaintext, Crockford base32 (`c32`) encoding.
 - Two probe schemes:
-  - `aasv` — deterministic AES-SIV, representative AEAD scheme.
+  - `dsiv` — deterministic AES-SIV, representative AEAD scheme.
   - `mock1` — identity (no crypto), isolates pure layering /
     cross-crate overhead from AEAD cost.
 
@@ -54,15 +50,13 @@ sides of the comparison.
 
 | Scheme | Op      | master+LTO | branch+LTO | Δ %    | Verdict           |
 |--------|---------|-----------:|-----------:|-------:|-------------------|
-| aasv   | enc     |   338.2 ns |   340.0 ns |  +0.5% | noise             |
-| aasv   | dec     |   344.9 ns |   338.8 ns |  −1.8% | improved (p<.05)  |
-| aasv   | autodec |   443.0 ns |   438.3 ns |  −1.1% | noise             |
+| dsiv   | enc     |   338.2 ns |   340.0 ns |  +0.5% | noise             |
+| dsiv   | dec     |   344.9 ns |   338.8 ns |  −1.8% | improved (p<.05)  |
 | mock1  | enc     |    78.8 ns |    75.4 ns |  −4.3% | noise             |
 | mock1  | dec     |    40.8 ns |    43.9 ns |  +7.5% | regressed (p<.05) |
-| mock1  | autodec |    78.6 ns |    81.0 ns |  +3.0% | noise             |
 
-For real-world AEAD schemes (`aasv`) the crypto cost dominates and
-the layering overhead is invisible — all three ops within ~2% of
+For real-world AEAD schemes (`dsiv`) the crypto cost dominates and
+the layering overhead is invisible — both ops within ~2% of
 master. For `mock1` (no crypto, pure layering signal) the worst case
 is dec at +7.5%, which is **+3 ns absolute** — the residual cost of
 the cross-crate call into `obcrypt::schemes::mock1::decrypt` that LTO
@@ -75,14 +69,13 @@ specific cost source:
 
 1. **Initial refactor** (branch commit `4de102b`): dynamic path
    routed through `obcrypt::encrypt_into` / `decrypt_as` /
-   `decrypt`. Caused ~5–11% regression on `Omnib::autodec` across
+   `decrypt`. Caused ~5–11% regression on `Omnib::dec` across
    all schemes. The framed obcrypt API adds an extra dispatch layer
    that the inliner couldn't collapse under default Cargo profile.
-2. **Bypass framed API** (this commit's `enc.rs` / `dec.rs` /
-   `dec_auto.rs`): call per-scheme `obcrypt::schemes::*::encrypt` /
-   `decrypt` directly + apply marker framing inline. Recovered most
-   of the dec/autodec regression but enc still regressed +5–7% on
-   deterministic schemes.
+2. **Bypass framed API** (this commit's `enc.rs` / `dec.rs`): call
+   per-scheme `obcrypt::schemes::*::encrypt` / `decrypt` directly.
+   Recovered most of the dec regression but enc still regressed
+   +5–7% on deterministic schemes.
 3. **Per-scheme split in obcrypt** (obcrypt-rs commit `1cafca5`):
    per-scheme owned `encrypt` / `decrypt` had been routed through
    their `_into` counterparts, paying the `TailBuffer` indirection
@@ -118,10 +111,10 @@ git checkout master
 # Cargo.toml; also add the mock1 specs to benchmarks_omnib.jsonl
 # (see this branch's diff for both).
 cargo bench -p oboron --bench omnib -- --warm-up-time 1 \
-  --measurement-time 2 --sample-size 30 '(aasv|mock1)\.c32/16B$'
+  --measurement-time 2 --sample-size 30 '(dsiv|mock1)\.c32/16B$'
 
 # Refactor
 git checkout obcrypt-refactor
 cargo bench -p oboron --bench omnib -- --warm-up-time 1 \
-  --measurement-time 2 --sample-size 30 '(aasv|mock1)\.c32/16B$'
+  --measurement-time 2 --sample-size 30 '(dsiv|mock1)\.c32/16B$'
 ```

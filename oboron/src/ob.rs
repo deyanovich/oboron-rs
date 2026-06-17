@@ -16,11 +16,11 @@ use crate::{format::IntoFormat, Encoding, Error, Format, MasterKey, ObtextCodec,
 ///
 /// ```rust
 /// # fn main() -> Result<(), oboron::Error> {
-/// # #[cfg(feature = "aasv")]
+/// # #[cfg(feature = "dsiv")]
 /// # {
 /// # use oboron::{Ob, generate_key};
 /// # let key = generate_key();
-/// let ob = Ob::new("aasv.b64", &key)?;
+/// let ob = Ob::new("dsiv.b64", &key)?;
 /// let ot = ob.enc("hello")?; // obtext
 /// let pt2 = ob.dec(&ot)?; // recovered plaintext
 /// assert_eq!(pt2, "hello");
@@ -33,12 +33,12 @@ use crate::{format::IntoFormat, Encoding, Error, Format, MasterKey, ObtextCodec,
 ///
 /// ```rust
 /// # fn main() -> Result<(), oboron::Error> {
-/// # #[cfg(all(feature = "aasv", feature = "mock"))]
+/// # #[cfg(all(feature = "dsiv", feature = "mock"))]
 /// # {
-/// # use oboron::{Ob, Scheme, Encoding, Format, AASV_B64};
+/// # use oboron::{Ob, Scheme, Encoding, Format, DSIV_B64};
 /// # let key = oboron::generate_key();
-/// let mut ob = Ob::new("aasv.c32", &key)?;
-/// let ot1 = ob.enc("hello")?; // aasv.c32 format
+/// let mut ob = Ob::new("dsiv.c32", &key)?;
+/// let ot1 = ob.enc("hello")?; // dsiv.c32 format
 ///
 /// // Change format at runtime
 /// ob.set_scheme(Scheme::Mock1)?;
@@ -48,8 +48,8 @@ use crate::{format::IntoFormat, Encoding, Error, Format, MasterKey, ObtextCodec,
 /// ob.set_encoding(Encoding::B64)?; // now mock1.b64
 ///
 /// // Set entire format at once
-/// ob.set_format("aasv.hex")?; // now aasv.hex
-/// ob.set_format(AASV_B64)?;   // now aasv.b64 (using constant)
+/// ob.set_format("dsiv.hex")?; // now dsiv.hex
+/// ob.set_format(DSIV_B64)?;   // now dsiv.b64 (using constant)
 /// # }
 /// # Ok(())
 /// # }
@@ -60,77 +60,37 @@ pub struct Ob {
 }
 
 impl Ob {
-    /// Create a new Ob with the specified format and base64 key.
+    /// Create a new `Ob` with the specified format and a hex key.
     ///
     /// Accepts either a format string (`&str`) or a `Format` instance.
+    /// The key is a 128-character hex string (the canonical key form);
+    /// for format-explicit construction see [`Self::from_hex_key`], and
+    /// for raw bytes [`Self::from_bytes`].
     ///
     /// # Examples
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron::{Ob, Format, Scheme, Encoding};
     /// # let key = oboron::generate_key();
     /// // Using format string
-    /// let ob1 = Ob::new("aasv.b64", &key)?;
+    /// let ob1 = Ob::new("dsiv.b64", &key)?;
     ///
     /// // Using Format instance
-    /// let format = Format::new(Scheme::Aasv, Encoding::B64);
+    /// let format = Format::new(Scheme::Dsiv, Encoding::B64);
     /// let ob2 = Ob::new(format, &key)?;
     /// # }
     /// # Ok(())
     /// # }
     /// ```
-    /// Create a new `Ob` instance from a format and a key string.
-    ///
-    /// The key format is auto-detected by length: 128 chars → hex
-    /// (canonical), 86 chars → base64 (deprecated; behind the
-    /// `base64-keys` feature). For format-explicit constructors see
-    /// [`Self::from_hex_key`] / [`Self::from_base64_key`].
-    ///
-    /// The base64 path is transitional and will be removed before
-    /// oboron 1.0 — migrate keys to hex.
     pub fn new(format: impl IntoFormat, key: &str) -> Result<Self, Error> {
         let format = format.into_format()?;
         Ok(Self {
             masterkey: MasterKey::from_string(key)?,
             format,
         })
-    }
-
-    /// Create a new `Ob` instance from a base64 key.
-    ///
-    /// Deprecated: oboron is moving to hex-only keys before v1.0.
-    /// Use [`Self::new`] (hex) or [`Self::from_hex_key`] instead.
-    #[cfg(feature = "base64-keys")]
-    #[deprecated(
-        since = "0.7.1",
-        note = "use Ob::new() / Ob::from_hex_key() (hex) instead; base64 key support will be removed before oboron 1.0"
-    )]
-    pub fn from_base64_key(format: impl IntoFormat, key_b64: &str) -> Result<Self, Error> {
-        let format = format.into_format()?;
-        Ok(Self {
-            #[allow(deprecated)]
-            masterkey: MasterKey::from_base64(key_b64)?,
-            format,
-        })
-    }
-
-    /// Deprecated alias for [`Self::from_base64_key`].
-    ///
-    /// The 0.8.x name had the target/format order flipped relative
-    /// to the standard `from_<format>_<target>` pattern. Doubly
-    /// deprecated: base64 support itself is on the way out before
-    /// oboron 1.0.
-    #[cfg(feature = "base64-keys")]
-    #[deprecated(
-        since = "0.9.0",
-        note = "use Ob::from_base64_key (or Ob::from_hex_key — base64 is going away)"
-    )]
-    pub fn from_key_base64(format: impl IntoFormat, key_b64: &str) -> Result<Self, Error> {
-        #[allow(deprecated)]
-        Self::from_base64_key(format, key_b64)
     }
 
     /// Set the format to a new value.
@@ -141,11 +101,11 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(all(feature = "aasv", feature = "mock"))]
+    /// # #[cfg(all(feature = "dsiv", feature = "mock"))]
     /// # {
     /// # use oboron::{Ob, Format, Scheme, Encoding};
     /// # let key = oboron::generate_key();
-    /// let mut ob = Ob::new("aasv.c32", &key)?;
+    /// let mut ob = Ob::new("dsiv.c32", &key)?;
     /// ob.set_format("mock1.b64")?; // switch using string
     /// ob.set_format(Format::new(Scheme::Mock2, Encoding:: Hex))?; // switch using Format
     /// # }
@@ -163,11 +123,11 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(all(feature = "aasv", feature = "mock"))]
+    /// # #[cfg(all(feature = "dsiv", feature = "mock"))]
     /// # {
     /// # use oboron::{Ob, Scheme};
     /// # let key = oboron::generate_key();
-    /// let mut ob = Ob::new("aasv.c32", &key)?;
+    /// let mut ob = Ob::new("dsiv.c32", &key)?;
     /// ob.set_scheme(Scheme::Mock1)?; // switch to mock1, keeping c32 encoding
     /// # }
     /// # Ok(())
@@ -184,12 +144,12 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron::{Ob, Encoding};
     /// # let key = oboron::generate_key();
-    /// let mut ob = Ob::new("aasv.c32", &key)?;
-    /// ob.set_encoding(Encoding::B64)?; // switch to b64, keeping aasv scheme
+    /// let mut ob = Ob::new("dsiv.c32", &key)?;
+    /// ob.set_encoding(Encoding::B64)?; // switch to b64, keeping dsiv scheme
     /// # }
     /// # Ok(())
     /// # }
@@ -197,48 +157,6 @@ impl Ob {
     pub fn set_encoding(&mut self, encoding: Encoding) -> Result<(), Error> {
         self.format = Format::new(self.format.scheme(), encoding);
         Ok(())
-    }
-
-    /// Decode and decrypt obtext with automatic format detection.
-    ///
-    /// Tries to decode using the instance's current encoding first (fast path),
-    /// then falls back to full format autodetection if that fails.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(all(feature = "aasv", feature = "mock"))]
-    /// # {
-    /// # use oboron:: Ob;
-    /// # let key = oboron::generate_key();
-    /// let mut ob = Ob::new("aasv.b64", &key)?;
-    /// let ot = ob.enc("test")?;
-    ///
-    /// // Change scheme - autodec will still work
-    /// ob.set_scheme(oboron::Scheme::Mock1)?;
-    /// let pt2 = ob.autodec(&ot)?;
-    /// assert_eq!(pt2, "test");
-    ///
-    /// // Works even with different encoding (slower fallback path)
-    /// ob.set_encoding(oboron::Encoding:: Hex)?;
-    /// let pt3 = ob.autodec(&ot)?; // Falls back to full autodetection
-    /// assert_eq!(pt3, "test");
-    /// # }
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[inline]
-    pub fn autodec(&self, obtext: &str) -> Result<String, Error> {
-        // Fast path: try current encoding first
-        if let Ok(result) =
-            crate::dec_auto::dec_any_scheme(&self.masterkey, self.format.encoding(), obtext)
-        {
-            return Ok(result);
-        }
-
-        // Fallback:  full format autodetection (encoding + scheme)
-        crate::dec_auto::dec_any_format(&self.masterkey, obtext)
     }
 
     // Alt constructors ================================================
@@ -251,14 +169,14 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(all(feature = "aasv", feature="keyless"))]
+    /// # #[cfg(all(feature = "dsiv", feature="keyless"))]
     /// # {
     /// # use oboron::{Ob, Format, Scheme, Encoding};
     /// // Using format string
-    /// let ob1 = Ob::new_keyless("aasv.c32")?;
+    /// let ob1 = Ob::new_keyless("dsiv.c32")?;
     ///
     /// // Using Format instance
-    /// let format = Format::new(Scheme::Aasv, Encoding::C32);
+    /// let format = Format::new(Scheme::Dsiv, Encoding::C32);
     /// let ob2 = Ob:: new_keyless(format)?;
     /// # }
     /// # Ok(())
@@ -283,12 +201,12 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron::{Ob, Format, Scheme, Encoding};
     /// let key_hex = oboron::generate_key();
-    /// let ob1 = Ob::from_hex_key("aasv.b64", &key_hex)?;
-    /// let ob2 = Ob::from_hex_key(Format::new(Scheme::Aasv, Encoding::B64), &key_hex)?;
+    /// let ob1 = Ob::from_hex_key("dsiv.b64", &key_hex)?;
+    /// let ob2 = Ob::from_hex_key(Format::new(Scheme::Dsiv, Encoding::B64), &key_hex)?;
     /// # }
     /// # Ok(())
     /// # }
@@ -321,12 +239,12 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron::{Ob, Format, Scheme, Encoding};
     /// let key_bytes = oboron::generate_key_bytes();
-    /// let ob1 = Ob::from_bytes("aasv.b64", &key_bytes)?; // using format string
-    /// let format = Format::new(Scheme:: Aasv, Encoding:: B64); // using Format
+    /// let ob1 = Ob::from_bytes("dsiv.b64", &key_bytes)?; // using format string
+    /// let format = Format::new(Scheme:: Dsiv, Encoding:: B64); // using Format
     /// let ob2 = Ob::from_bytes(format, &key_bytes)?;
     /// # }
     /// # Ok(())
@@ -346,11 +264,11 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron::Ob;
     /// # let key = oboron::generate_key();
-    /// let ob = Ob::new("aasv.b64", &key)?;
+    /// let ob = Ob::new("dsiv.b64", &key)?;
     /// let key_retrieved = ob.key();
     /// assert_eq!(key_retrieved, key);
     /// assert_eq!(key_retrieved.len(), 128); // 64 bytes = 128 hex chars
@@ -361,21 +279,6 @@ impl Ob {
     #[inline]
     pub fn key(&self) -> String {
         self.masterkey.key_hex()
-    }
-
-    /// Get the key as a base64 string.
-    ///
-    /// Deprecated: oboron is moving to hex-only keys before v1.0.
-    /// Use [`Self::key`] (hex) instead.
-    #[cfg(feature = "base64-keys")]
-    #[deprecated(
-        since = "0.7.1",
-        note = "use Ob::key() (hex) instead; base64 key support will be removed before oboron 1.0"
-    )]
-    #[inline]
-    pub fn key_base64(&self) -> String {
-        #[allow(deprecated)]
-        self.masterkey.key_base64()
     }
 
     /// Get the key as a 128-character hex string. Equivalent to [`Self::key`].
@@ -390,11 +293,11 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron::Ob;
     /// let key_bytes = oboron::generate_key_bytes();
-    /// let ob = Ob::from_bytes("aasv.b64", &key_bytes)?;
+    /// let ob = Ob::from_bytes("dsiv.b64", &key_bytes)?;
     /// let retrieved = ob.key_bytes();
     /// assert_eq!(retrieved, &key_bytes);
     /// # }
@@ -437,11 +340,11 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron:: Ob;
     /// # let key = oboron::generate_key();
-    /// let ob = Ob::new("aasv.b64", &key)?;
+    /// let ob = Ob::new("dsiv.b64", &key)?;
     /// let ot = ob.enc("secret data")?;
     /// assert! (!ot.is_empty());
     /// # }
@@ -455,18 +358,18 @@ impl Ob {
 
     /// Decode and decrypt obtext to plaintext.
     ///
-    /// Uses the instance's configured format for decoding.  Does not perform
-    /// scheme autodetection - use [`autodec`](Self::autodec) for that.
+    /// Uses the instance's configured format for decoding. The scheme
+    /// is supplied by the format, not detected from the obtext.
     ///
     /// # Examples
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron::Ob;
     /// # let key = oboron::generate_key();
-    /// let ob = Ob::new("aasv.b64", &key)?;
+    /// let ob = Ob::new("dsiv.b64", &key)?;
     /// let ot = ob.enc("secret data")?;
     /// let pt2 = ob.dec(&ot)?;
     /// assert_eq!(pt2, "secret data");
@@ -485,13 +388,13 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron::{Ob, Scheme, Encoding};
     /// # let key = oboron::generate_key();
-    /// let ob = Ob::new("aasv.b64", &key)?;
+    /// let ob = Ob::new("dsiv.b64", &key)?;
     /// let format = ob.format();
-    /// assert_eq!(format.scheme(), Scheme::Aasv);
+    /// assert_eq!(format.scheme(), Scheme::Dsiv);
     /// assert_eq!(format.encoding(), Encoding::B64);
     /// # }
     /// # Ok(())
@@ -508,12 +411,12 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron::{Ob, Scheme};
     /// # let key = oboron::generate_key();
-    /// let ob = Ob:: new("aasv.b64", &key)?;
-    /// assert_eq!(ob.scheme(), Scheme::Aasv);
+    /// let ob = Ob:: new("dsiv.b64", &key)?;
+    /// assert_eq!(ob.scheme(), Scheme::Dsiv);
     /// # }
     /// # Ok(())
     /// # }
@@ -529,11 +432,11 @@ impl Ob {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron::{Ob, Encoding};
     /// # let key = oboron::generate_key();
-    /// let ob = Ob:: new("aasv.b64", &key)?;
+    /// let ob = Ob:: new("dsiv.b64", &key)?;
     /// assert_eq!(ob.encoding(), Encoding::B64);
     /// # }
     /// # Ok(())

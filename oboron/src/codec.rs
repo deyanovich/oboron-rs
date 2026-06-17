@@ -5,7 +5,7 @@ use crate::{error::Error, Encoding, Format, MasterKey, Scheme};
 
 /// Core trait for ObtextCodec encryption+encoding/decoding+decryption implementations.
 ///
-/// Each scheme+encoding combination (AasvC32, AasvB64, etc.) implements this trait
+/// Each scheme+encoding combination (DsivC32, DsivB64, etc.) implements this trait
 /// to provide a consistent interface for encoding and decoding operations.
 ///
 /// Note: Construction methods (`new`, `from_bytes`, `new_keyless`) are not part of
@@ -27,7 +27,9 @@ pub trait ObtextCodec {
     fn encoding(&self) -> Encoding;
 }
 
-/// Macro for 32-byte key schemes (aags, apgs, upbc, mock1, mock2)
+/// Macro for the GCM-SIV and mock schemes (dgcmsiv, pgcmsiv, mock1,
+/// mock2). Every codec stores the full 64-byte master key; obcrypt
+/// derives the 32-byte AES-GCM-SIV key internally via HKDF-Expand.
 ///
 /// This macro generates a complete ObtextCodec implementation with all overhead eliminated:
 /// - No runtime scheme matching
@@ -53,16 +55,10 @@ macro_rules! impl_codec_32 {
         }
 
         impl $name {
-            /// Create a new instance from a key string.
-            ///
-            /// The key format is auto-detected by length: 128 chars →
-            /// hex (canonical), 86 chars → base64 (deprecated; behind
-            /// the `base64-keys` feature). For format-explicit
-            /// constructors see `from_hex_key` / `from_base64_key`;
-            /// for raw bytes use `from_bytes`.
-            ///
-            /// The base64 path is transitional and will be removed
-            /// before oboron 1.0 — migrate keys to hex.
+            /// Create a new instance from a 128-character hex key
+            /// string (the canonical key form). For raw bytes use
+            /// [`Self::from_bytes`]; [`Self::from_hex_key`] is the
+            /// explicit-hex equivalent of this constructor.
             #[inline]
             pub fn new(key: &str) -> Result<Self, Error> {
                 Ok(Self {
@@ -113,42 +109,6 @@ macro_rules! impl_codec_32 {
                 Self::from_hex_key(key_hex)
             }
 
-            /// Create a new instance from a 86-character base64 key.
-            /// Strict base64 — rejects hex.
-            ///
-            /// Deprecated: oboron is moving to hex-only keys before
-            /// v1.0. Use [`Self::from_hex_key`] (hex) instead.
-            #[inline]
-            #[cfg(feature = "base64-keys")]
-            #[deprecated(
-                since = "0.7.1",
-                note = "use from_hex_key() / new() (hex) instead; base64 key support will be removed before oboron 1.0"
-            )]
-            pub fn from_base64_key(key_b64: &str) -> Result<Self, Error> {
-                Ok(Self {
-                    #[allow(deprecated)]
-                    masterkey: MasterKey::from_base64(key_b64)?,
-                })
-            }
-
-            /// Deprecated alias for [`Self::from_base64_key`].
-            ///
-            /// The 0.8.x name had the target/format order flipped
-            /// relative to the standard `from_<format>_<target>`
-            /// pattern; renamed in 0.9.0 for consistency. Doubly
-            /// deprecated: base64 support itself is on the way out
-            /// before oboron 1.0.
-            #[inline]
-            #[cfg(feature = "base64-keys")]
-            #[deprecated(
-                since = "0.9.0",
-                note = "use from_base64_key (or from_hex_key — base64 is going away)"
-            )]
-            pub fn from_key_base64(key_b64: &str) -> Result<Self, Error> {
-                #[allow(deprecated)]
-                Self::from_base64_key(key_b64)
-            }
-
             /// Create a new instance from a 64-byte key.
             #[inline]
             pub fn from_bytes(key_bytes: &[u8; 64]) -> Result<Self, Error> {
@@ -169,21 +129,6 @@ macro_rules! impl_codec_32 {
                 self.masterkey.key_hex()
             }
 
-            /// Get the key as a base64 string.
-            ///
-            /// Deprecated: oboron is moving to hex-only keys before
-            /// v1.0. Use [`Self::key`] (hex) instead.
-            #[inline]
-            #[cfg(feature = "base64-keys")]
-            #[deprecated(
-                since = "0.7.1",
-                note = "use key() (hex) instead; base64 key support will be removed before oboron 1.0"
-            )]
-            pub fn key_base64(&self) -> String {
-                #[allow(deprecated)]
-                self.masterkey.key_base64()
-            }
-
             /// Get the key in raw bytes format
             #[inline]
             pub fn key_bytes(&self) -> &[u8; 64] {
@@ -198,41 +143,23 @@ macro_rules! impl_codec_32 {
                     return Err(Error::EmptyPlaintext);
                 }
 
-                // obcrypt does crypto + scheme-marker framing in one call.
-                let mut ciphertext = $encrypt_fn(plaintext.as_bytes(), self.masterkey.obcrypt_key())?;
-
-                // Append the XOR'd marker (oboron protocol framing).
-                let marker = $scheme.marker();
-                let first_byte = ciphertext[0];
-                ciphertext.push(marker[0] ^ first_byte);
-                ciphertext.push(marker[1] ^ first_byte);
+                // obcrypt produces the raw AEAD scheme output; the
+                // obtext is its text encoding, no scheme marker on the
+                // wire (the scheme is fixed by this codec type).
+                let scheme_output =
+                    $encrypt_fn(plaintext.as_bytes(), self.masterkey.obcrypt_key())?;
 
                 // Encode - compile-time dispatch
-                Ok(encode_bytes(&ciphertext, $encoding))
+                Ok(encode_bytes(&scheme_output, $encoding))
             }
 
             #[inline(always)]
             fn dec(&self, obtext: &str) -> Result<String, Error> {
-                // Decode
-                let mut buffer = decode_bytes(obtext, $encoding)?;
+                // Decode to the scheme output bytes
+                let buffer = decode_bytes(obtext, $encoding)?;
 
-                if buffer.len() < 2 {
-                    return Err(Error::PayloadTooShort);
-                }
-
-                // XOR and extract marker
-                let len = buffer.len();
-                let first_byte = buffer[0];
-                let scheme_marker = [buffer[len - 2] ^ first_byte, buffer[len - 1] ^ first_byte];
-
-                // Validate marker
-                if scheme_marker != $scheme.marker() {
-                    return Err(Error::SchemeMarkerMismatch);
-                }
-
-                buffer.truncate(len - 2);
-
-                // Decrypt directly (obcrypt scheme module, no marker framing here).
+                // Decrypt directly. The scheme is fixed by this codec
+                // type; a wrong scheme fails the AEAD tag check.
                 let plaintext_bytes = $decrypt_fn(&buffer, self.masterkey.obcrypt_key())?;
 
                 // Convert to string
@@ -297,7 +224,8 @@ macro_rules! impl_codec_32 {
     };
 }
 
-/// Macro for 64-byte key schemes (aasv, apsv)
+/// Macro for the AES-SIV schemes (dsiv, psiv). The full 64-byte master
+/// key is used directly as the AES-SIV key (no derivation).
 macro_rules! impl_codec_64 {
     (
         $name:ident,
@@ -316,16 +244,10 @@ macro_rules! impl_codec_64 {
         }
 
         impl $name {
-            /// Create a new instance from a key string.
-            ///
-            /// The key format is auto-detected by length: 128 chars →
-            /// hex (canonical), 86 chars → base64 (deprecated; behind
-            /// the `base64-keys` feature). For format-explicit
-            /// constructors see `from_hex_key` / `from_base64_key`;
-            /// for raw bytes use `from_bytes`.
-            ///
-            /// The base64 path is transitional and will be removed
-            /// before oboron 1.0 — migrate keys to hex.
+            /// Create a new instance from a 128-character hex key
+            /// string (the canonical key form). For raw bytes use
+            /// [`Self::from_bytes`]; [`Self::from_hex_key`] is the
+            /// explicit-hex equivalent of this constructor.
             #[inline]
             pub fn new(key: &str) -> Result<Self, Error> {
                 Ok(Self {
@@ -376,42 +298,6 @@ macro_rules! impl_codec_64 {
                 Self::from_hex_key(key_hex)
             }
 
-            /// Create a new instance from a 86-character base64 key.
-            /// Strict base64 — rejects hex.
-            ///
-            /// Deprecated: oboron is moving to hex-only keys before
-            /// v1.0. Use [`Self::from_hex_key`] (hex) instead.
-            #[inline]
-            #[cfg(feature = "base64-keys")]
-            #[deprecated(
-                since = "0.7.1",
-                note = "use from_hex_key() / new() (hex) instead; base64 key support will be removed before oboron 1.0"
-            )]
-            pub fn from_base64_key(key_b64: &str) -> Result<Self, Error> {
-                Ok(Self {
-                    #[allow(deprecated)]
-                    masterkey: MasterKey::from_base64(key_b64)?,
-                })
-            }
-
-            /// Deprecated alias for [`Self::from_base64_key`].
-            ///
-            /// The 0.8.x name had the target/format order flipped
-            /// relative to the standard `from_<format>_<target>`
-            /// pattern; renamed in 0.9.0 for consistency. Doubly
-            /// deprecated: base64 support itself is on the way out
-            /// before oboron 1.0.
-            #[inline]
-            #[cfg(feature = "base64-keys")]
-            #[deprecated(
-                since = "0.9.0",
-                note = "use from_base64_key (or from_hex_key — base64 is going away)"
-            )]
-            pub fn from_key_base64(key_b64: &str) -> Result<Self, Error> {
-                #[allow(deprecated)]
-                Self::from_base64_key(key_b64)
-            }
-
             /// Create a new instance from a 64-byte key.
             #[inline]
             pub fn from_bytes(key_bytes: &[u8; 64]) -> Result<Self, Error> {
@@ -432,21 +318,6 @@ macro_rules! impl_codec_64 {
                 self.masterkey.key_hex()
             }
 
-            /// Get the key as a base64 string.
-            ///
-            /// Deprecated: oboron is moving to hex-only keys before
-            /// v1.0. Use [`Self::key`] (hex) instead.
-            #[inline]
-            #[cfg(feature = "base64-keys")]
-            #[deprecated(
-                since = "0.7.1",
-                note = "use key() (hex) instead; base64 key support will be removed before oboron 1.0"
-            )]
-            pub fn key_base64(&self) -> String {
-                #[allow(deprecated)]
-                self.masterkey.key_base64()
-            }
-
             /// Get the key in raw bytes format
             #[inline]
             pub fn key_bytes(&self) -> &[u8; 64] {
@@ -461,41 +332,23 @@ macro_rules! impl_codec_64 {
                     return Err(Error::EmptyPlaintext);
                 }
 
-                // obcrypt does crypto + scheme-marker framing in one call.
-                let mut ciphertext = $encrypt_fn(plaintext.as_bytes(), self.masterkey.obcrypt_key())?;
-
-                // Append the XOR'd marker (oboron protocol framing).
-                let marker = $scheme.marker();
-                let first_byte = ciphertext[0];
-                ciphertext.push(marker[0] ^ first_byte);
-                ciphertext.push(marker[1] ^ first_byte);
+                // obcrypt produces the raw AEAD scheme output; the
+                // obtext is its text encoding, no scheme marker on the
+                // wire (the scheme is fixed by this codec type).
+                let scheme_output =
+                    $encrypt_fn(plaintext.as_bytes(), self.masterkey.obcrypt_key())?;
 
                 // Encode - compile-time dispatch
-                Ok(encode_bytes(&ciphertext, $encoding))
+                Ok(encode_bytes(&scheme_output, $encoding))
             }
 
             #[inline(always)]
             fn dec(&self, obtext: &str) -> Result<String, Error> {
-                // Decode
-                let mut buffer = decode_bytes(obtext, $encoding)?;
+                // Decode to the scheme output bytes
+                let buffer = decode_bytes(obtext, $encoding)?;
 
-                if buffer.len() < 2 {
-                    return Err(Error::PayloadTooShort);
-                }
-
-                // XOR and extract marker
-                let len = buffer.len();
-                let first_byte = buffer[0];
-                let scheme_marker = [buffer[len - 2] ^ first_byte, buffer[len - 1] ^ first_byte];
-
-                // Validate marker
-                if scheme_marker != $scheme.marker() {
-                    return Err(Error::SchemeMarkerMismatch);
-                }
-
-                buffer.truncate(len - 2);
-
-                // Decrypt directly (obcrypt scheme module, no marker framing here).
+                // Decrypt directly. The scheme is fixed by this codec
+                // type; a wrong scheme fails the AEAD tag check.
                 let plaintext_bytes = $decrypt_fn(&buffer, self.masterkey.obcrypt_key())?;
 
                 // Convert to string
@@ -590,215 +443,174 @@ fn decode_bytes(text: &str, encoding: Encoding) -> Result<Vec<u8>, Error> {
 
 // Generate all scheme+encoding combinations
 
-// aags variants (32-byte key)
-#[cfg(feature = "aags")]
+// dgcmsiv variants (32-byte key)
+#[cfg(feature = "dgcmsiv")]
 impl_codec_32!(
-    AagsC32,
-    Scheme::Aags,
+    DgcmsivC32,
+    Scheme::Dgcmsiv,
     Encoding::C32,
-    "aags. c32",
-    obcrypt::schemes::aags::encrypt,
-    obcrypt::schemes::aags::decrypt,
-    aags
+    "dgcmsiv. c32",
+    obcrypt::schemes::dgcmsiv::encrypt,
+    obcrypt::schemes::dgcmsiv::decrypt,
+    dgcmsiv
 );
-#[cfg(feature = "aags")]
+#[cfg(feature = "dgcmsiv")]
 impl_codec_32!(
-    AagsB32,
-    Scheme::Aags,
+    DgcmsivB32,
+    Scheme::Dgcmsiv,
     Encoding::B32,
-    "aags. b32",
-    obcrypt::schemes::aags::encrypt,
-    obcrypt::schemes::aags::decrypt,
-    aags
+    "dgcmsiv. b32",
+    obcrypt::schemes::dgcmsiv::encrypt,
+    obcrypt::schemes::dgcmsiv::decrypt,
+    dgcmsiv
 );
-#[cfg(feature = "aags")]
+#[cfg(feature = "dgcmsiv")]
 impl_codec_32!(
-    AagsB64,
-    Scheme::Aags,
+    DgcmsivB64,
+    Scheme::Dgcmsiv,
     Encoding::B64,
-    "aags.b64",
-    obcrypt::schemes::aags::encrypt,
-    obcrypt::schemes::aags::decrypt,
-    aags
+    "dgcmsiv.b64",
+    obcrypt::schemes::dgcmsiv::encrypt,
+    obcrypt::schemes::dgcmsiv::decrypt,
+    dgcmsiv
 );
-#[cfg(feature = "aags")]
+#[cfg(feature = "dgcmsiv")]
 impl_codec_32!(
-    AagsHex,
-    Scheme::Aags,
+    DgcmsivHex,
+    Scheme::Dgcmsiv,
     Encoding::Hex,
-    "aags.hex",
-    obcrypt::schemes::aags::encrypt,
-    obcrypt::schemes::aags::decrypt,
-    aags
+    "dgcmsiv.hex",
+    obcrypt::schemes::dgcmsiv::encrypt,
+    obcrypt::schemes::dgcmsiv::decrypt,
+    dgcmsiv
 );
 
-// aasv variants (64-byte key)
-#[cfg(feature = "aasv")]
+// dsiv variants (64-byte key)
+#[cfg(feature = "dsiv")]
 impl_codec_64!(
-    AasvC32,
-    Scheme::Aasv,
+    DsivC32,
+    Scheme::Dsiv,
     Encoding::C32,
-    "aasv.c32",
-    obcrypt::schemes::aasv::encrypt,
-    obcrypt::schemes::aasv::decrypt,
-    aasv
+    "dsiv.c32",
+    obcrypt::schemes::dsiv::encrypt,
+    obcrypt::schemes::dsiv::decrypt,
+    dsiv
 );
-#[cfg(feature = "aasv")]
+#[cfg(feature = "dsiv")]
 impl_codec_64!(
-    AasvB32,
-    Scheme::Aasv,
+    DsivB32,
+    Scheme::Dsiv,
     Encoding::B32,
-    "aasv.b32",
-    obcrypt::schemes::aasv::encrypt,
-    obcrypt::schemes::aasv::decrypt,
-    aasv
+    "dsiv.b32",
+    obcrypt::schemes::dsiv::encrypt,
+    obcrypt::schemes::dsiv::decrypt,
+    dsiv
 );
-#[cfg(feature = "aasv")]
+#[cfg(feature = "dsiv")]
 impl_codec_64!(
-    AasvB64,
-    Scheme::Aasv,
+    DsivB64,
+    Scheme::Dsiv,
     Encoding::B64,
-    "aasv.b64",
-    obcrypt::schemes::aasv::encrypt,
-    obcrypt::schemes::aasv::decrypt,
-    aasv
+    "dsiv.b64",
+    obcrypt::schemes::dsiv::encrypt,
+    obcrypt::schemes::dsiv::decrypt,
+    dsiv
 );
-#[cfg(feature = "aasv")]
+#[cfg(feature = "dsiv")]
 impl_codec_64!(
-    AasvHex,
-    Scheme::Aasv,
+    DsivHex,
+    Scheme::Dsiv,
     Encoding::Hex,
-    "aasv.hex",
-    obcrypt::schemes::aasv::encrypt,
-    obcrypt::schemes::aasv::decrypt,
-    aasv
+    "dsiv.hex",
+    obcrypt::schemes::dsiv::encrypt,
+    obcrypt::schemes::dsiv::decrypt,
+    dsiv
 );
 
-// apgs variants (32-byte key)
-#[cfg(feature = "apgs")]
+// pgcmsiv variants (32-byte key)
+#[cfg(feature = "pgcmsiv")]
 impl_codec_32!(
-    ApgsC32,
-    Scheme::Apgs,
+    PgcmsivC32,
+    Scheme::Pgcmsiv,
     Encoding::C32,
-    "apgs.c32",
-    obcrypt::schemes::apgs::encrypt,
-    obcrypt::schemes::apgs::decrypt,
-    apgs
+    "pgcmsiv.c32",
+    obcrypt::schemes::pgcmsiv::encrypt,
+    obcrypt::schemes::pgcmsiv::decrypt,
+    pgcmsiv
 );
-#[cfg(feature = "apgs")]
+#[cfg(feature = "pgcmsiv")]
 impl_codec_32!(
-    ApgsB32,
-    Scheme::Apgs,
+    PgcmsivB32,
+    Scheme::Pgcmsiv,
     Encoding::B32,
-    "apgs.b32",
-    obcrypt::schemes::apgs::encrypt,
-    obcrypt::schemes::apgs::decrypt,
-    apgs
+    "pgcmsiv.b32",
+    obcrypt::schemes::pgcmsiv::encrypt,
+    obcrypt::schemes::pgcmsiv::decrypt,
+    pgcmsiv
 );
-#[cfg(feature = "apgs")]
+#[cfg(feature = "pgcmsiv")]
 impl_codec_32!(
-    ApgsB64,
-    Scheme::Apgs,
+    PgcmsivB64,
+    Scheme::Pgcmsiv,
     Encoding::B64,
-    "apgs.b64",
-    obcrypt::schemes::apgs::encrypt,
-    obcrypt::schemes::apgs::decrypt,
-    apgs
+    "pgcmsiv.b64",
+    obcrypt::schemes::pgcmsiv::encrypt,
+    obcrypt::schemes::pgcmsiv::decrypt,
+    pgcmsiv
 );
-#[cfg(feature = "apgs")]
+#[cfg(feature = "pgcmsiv")]
 impl_codec_32!(
-    ApgsHex,
-    Scheme::Apgs,
+    PgcmsivHex,
+    Scheme::Pgcmsiv,
     Encoding::Hex,
-    "apgs.hex",
-    obcrypt::schemes::apgs::encrypt,
-    obcrypt::schemes::apgs::decrypt,
-    apgs
+    "pgcmsiv.hex",
+    obcrypt::schemes::pgcmsiv::encrypt,
+    obcrypt::schemes::pgcmsiv::decrypt,
+    pgcmsiv
 );
 
-// apsv variants (64-byte key)
-#[cfg(feature = "apsv")]
+// psiv variants (64-byte key)
+#[cfg(feature = "psiv")]
 impl_codec_64!(
-    ApsvC32,
-    Scheme::Apsv,
+    PsivC32,
+    Scheme::Psiv,
     Encoding::C32,
-    "apsv.c32",
-    obcrypt::schemes::apsv::encrypt,
-    obcrypt::schemes::apsv::decrypt,
-    apsv
+    "psiv.c32",
+    obcrypt::schemes::psiv::encrypt,
+    obcrypt::schemes::psiv::decrypt,
+    psiv
 );
-#[cfg(feature = "apsv")]
+#[cfg(feature = "psiv")]
 impl_codec_64!(
-    ApsvB32,
-    Scheme::Apsv,
+    PsivB32,
+    Scheme::Psiv,
     Encoding::B32,
-    "apsv.b32",
-    obcrypt::schemes::apsv::encrypt,
-    obcrypt::schemes::apsv::decrypt,
-    apsv
+    "psiv.b32",
+    obcrypt::schemes::psiv::encrypt,
+    obcrypt::schemes::psiv::decrypt,
+    psiv
 );
-#[cfg(feature = "apsv")]
+#[cfg(feature = "psiv")]
 impl_codec_64!(
-    ApsvB64,
-    Scheme::Apsv,
+    PsivB64,
+    Scheme::Psiv,
     Encoding::B64,
-    "apsv.b64",
-    obcrypt::schemes::apsv::encrypt,
-    obcrypt::schemes::apsv::decrypt,
-    apsv
+    "psiv.b64",
+    obcrypt::schemes::psiv::encrypt,
+    obcrypt::schemes::psiv::decrypt,
+    psiv
 );
-#[cfg(feature = "apsv")]
+#[cfg(feature = "psiv")]
 impl_codec_64!(
-    ApsvHex,
-    Scheme::Apsv,
+    PsivHex,
+    Scheme::Psiv,
     Encoding::Hex,
-    "apsv.hex",
-    obcrypt::schemes::apsv::encrypt,
-    obcrypt::schemes::apsv::decrypt,
-    apsv
+    "psiv.hex",
+    obcrypt::schemes::psiv::encrypt,
+    obcrypt::schemes::psiv::decrypt,
+    psiv
 );
 
-// upbc variants (32-byte key)
-#[cfg(feature = "upbc")]
-impl_codec_32!(
-    UpbcC32,
-    Scheme::Upbc,
-    Encoding::C32,
-    "upbc.c32",
-    obcrypt::schemes::upbc::encrypt,
-    obcrypt::schemes::upbc::decrypt,
-    upbc
-);
-#[cfg(feature = "upbc")]
-impl_codec_32!(
-    UpbcB32,
-    Scheme::Upbc,
-    Encoding::B32,
-    "upbc.b32",
-    obcrypt::schemes::upbc::encrypt,
-    obcrypt::schemes::upbc::decrypt,
-    upbc
-);
-#[cfg(feature = "upbc")]
-impl_codec_32!(
-    UpbcB64,
-    Scheme::Upbc,
-    Encoding::B64,
-    "upbc.b64",
-    obcrypt::schemes::upbc::encrypt,
-    obcrypt::schemes::upbc::decrypt,
-    upbc
-);
-#[cfg(feature = "upbc")]
-impl_codec_32!(
-    UpbcHex,
-    Scheme::Upbc,
-    Encoding::Hex,
-    "upbc.hex",
-    obcrypt::schemes::upbc::encrypt,
-    obcrypt::schemes::upbc::decrypt,
-    upbc
-);
 
 // mock1 variants (32-byte key)
 #[cfg(feature = "mock")]
@@ -890,46 +702,38 @@ impl_codec_32!(
 /// It's returned by the `oboron::new()` factory function.
 #[allow(non_camel_case_types)]
 pub enum ObAny {
-    #[cfg(feature = "aags")]
-    AagsC32(AagsC32),
-    #[cfg(feature = "aags")]
-    AagsB32(AagsB32),
-    #[cfg(feature = "aags")]
-    AagsB64(AagsB64),
-    #[cfg(feature = "aags")]
-    AagsHex(AagsHex),
-    #[cfg(feature = "apgs")]
-    ApgsC32(ApgsC32),
-    #[cfg(feature = "apgs")]
-    ApgsB32(ApgsB32),
-    #[cfg(feature = "apgs")]
-    ApgsB64(ApgsB64),
-    #[cfg(feature = "apgs")]
-    ApgsHex(ApgsHex),
-    #[cfg(feature = "aasv")]
-    AasvC32(AasvC32),
-    #[cfg(feature = "aasv")]
-    AasvB32(AasvB32),
-    #[cfg(feature = "aasv")]
-    AasvB64(AasvB64),
-    #[cfg(feature = "aasv")]
-    AasvHex(AasvHex),
-    #[cfg(feature = "apsv")]
-    ApsvC32(ApsvC32),
-    #[cfg(feature = "apsv")]
-    ApsvB32(ApsvB32),
-    #[cfg(feature = "apsv")]
-    ApsvB64(ApsvB64),
-    #[cfg(feature = "apsv")]
-    ApsvHex(ApsvHex),
-    #[cfg(feature = "upbc")]
-    UpbcC32(UpbcC32),
-    #[cfg(feature = "upbc")]
-    UpbcB32(UpbcB32),
-    #[cfg(feature = "upbc")]
-    UpbcB64(UpbcB64),
-    #[cfg(feature = "upbc")]
-    UpbcHex(UpbcHex),
+    #[cfg(feature = "dgcmsiv")]
+    DgcmsivC32(DgcmsivC32),
+    #[cfg(feature = "dgcmsiv")]
+    DgcmsivB32(DgcmsivB32),
+    #[cfg(feature = "dgcmsiv")]
+    DgcmsivB64(DgcmsivB64),
+    #[cfg(feature = "dgcmsiv")]
+    DgcmsivHex(DgcmsivHex),
+    #[cfg(feature = "pgcmsiv")]
+    PgcmsivC32(PgcmsivC32),
+    #[cfg(feature = "pgcmsiv")]
+    PgcmsivB32(PgcmsivB32),
+    #[cfg(feature = "pgcmsiv")]
+    PgcmsivB64(PgcmsivB64),
+    #[cfg(feature = "pgcmsiv")]
+    PgcmsivHex(PgcmsivHex),
+    #[cfg(feature = "dsiv")]
+    DsivC32(DsivC32),
+    #[cfg(feature = "dsiv")]
+    DsivB32(DsivB32),
+    #[cfg(feature = "dsiv")]
+    DsivB64(DsivB64),
+    #[cfg(feature = "dsiv")]
+    DsivHex(DsivHex),
+    #[cfg(feature = "psiv")]
+    PsivC32(PsivC32),
+    #[cfg(feature = "psiv")]
+    PsivB32(PsivB32),
+    #[cfg(feature = "psiv")]
+    PsivB64(PsivB64),
+    #[cfg(feature = "psiv")]
+    PsivHex(PsivHex),
     // Testing
     #[cfg(feature = "mock")]
     Mock1C32(Mock1C32),
@@ -954,46 +758,38 @@ macro_rules! delegate_to_inner {
     (fn $method:ident(&self $(, $arg:ident: $argty:ty)*) -> $ret:ty) => {
         fn $method(&self $(, $arg: $argty)*) -> $ret {
             match self {
-                #[cfg(feature = "aags")]
-                ObAny::AagsC32(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "aags")]
-                ObAny::AagsB32(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "aags")]
-                ObAny::AagsB64(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "aags")]
-                ObAny::AagsHex(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "apgs")]
-                ObAny::ApgsC32(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "apgs")]
-                ObAny::ApgsB32(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "apgs")]
-                ObAny::ApgsB64(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "apgs")]
-                ObAny::ApgsHex(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "aasv")]
-                ObAny::AasvC32(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "aasv")]
-                ObAny::AasvB32(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "aasv")]
-                ObAny::AasvB64(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "aasv")]
-                ObAny::AasvHex(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "apsv")]
-                ObAny::ApsvC32(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "apsv")]
-                ObAny::ApsvB32(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "apsv")]
-                ObAny::ApsvB64(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "apsv")]
-                ObAny::ApsvHex(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "upbc")]
-                ObAny::UpbcC32(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "upbc")]
-                ObAny::UpbcB32(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "upbc")]
-                ObAny::UpbcB64(ob) => ob.$method($($arg),*),
-                #[cfg(feature = "upbc")]
-                ObAny::UpbcHex(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "dgcmsiv")]
+                ObAny::DgcmsivC32(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "dgcmsiv")]
+                ObAny::DgcmsivB32(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "dgcmsiv")]
+                ObAny::DgcmsivB64(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "dgcmsiv")]
+                ObAny::DgcmsivHex(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "pgcmsiv")]
+                ObAny::PgcmsivC32(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "pgcmsiv")]
+                ObAny::PgcmsivB32(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "pgcmsiv")]
+                ObAny::PgcmsivB64(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "pgcmsiv")]
+                ObAny::PgcmsivHex(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "dsiv")]
+                ObAny::DsivC32(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "dsiv")]
+                ObAny::DsivB32(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "dsiv")]
+                ObAny::DsivB64(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "dsiv")]
+                ObAny::DsivHex(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "psiv")]
+                ObAny::PsivC32(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "psiv")]
+                ObAny::PsivB32(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "psiv")]
+                ObAny::PsivB64(ob) => ob.$method($($arg),*),
+                #[cfg(feature = "psiv")]
+                ObAny::PsivHex(ob) => ob.$method($($arg),*),
                 // Testing
                 #[cfg(feature = "mock")]
                 ObAny::Mock1C32(ob) => ob.$method($($arg),*),
@@ -1032,34 +828,29 @@ impl ObAny {
     pub fn new(key: &str) -> Result<Self, Error> {
         #[cfg(feature = "mock")]
         return Ok(ObAny::Mock1C32(Mock1C32::new(key)?));
-        #[cfg(feature = "upbc")]
+        #[cfg(feature = "dgcmsiv")]
         #[cfg(not(any(feature = "mock")))]
-        return Ok(ObAny::UpbcC32(UpbcC32::new(key)?));
-        #[cfg(feature = "aags")]
-        #[cfg(not(any(feature = "mock", feature = "upbc")))]
-        return Ok(ObAny::AagsC32(AagsC32::new(key)?));
-        #[cfg(feature = "apgs")]
-        #[cfg(not(any(feature = "mock", feature = "upbc", feature = "aags")))]
-        return Ok(ObAny::ApgsC32(ApgsC32::new(key)?));
-        #[cfg(feature = "aasv")]
-        #[cfg(not(any(feature = "mock", feature = "upbc", feature = "aags", feature = "apgs")))]
-        return Ok(ObAny::AasvC32(AasvC32::new(key)?));
-        #[cfg(feature = "apsv")]
+        return Ok(ObAny::DgcmsivC32(DgcmsivC32::new(key)?));
+        #[cfg(feature = "pgcmsiv")]
+        #[cfg(not(any(feature = "mock", feature = "dgcmsiv")))]
+        return Ok(ObAny::PgcmsivC32(PgcmsivC32::new(key)?));
+        #[cfg(feature = "dsiv")]
+        #[cfg(not(any(feature = "mock", feature = "dgcmsiv", feature = "pgcmsiv")))]
+        return Ok(ObAny::DsivC32(DsivC32::new(key)?));
+        #[cfg(feature = "psiv")]
         #[cfg(not(any(
             feature = "mock",
-            feature = "upbc",
-            feature = "aags",
-            feature = "apgs",
-            feature = "aasv"
+            feature = "dgcmsiv",
+            feature = "pgcmsiv",
+            feature = "dsiv"
         )))]
-        return Ok(ObAny::ApsvC32(ApsvC32::new(key)?));
+        return Ok(ObAny::PsivC32(PsivC32::new(key)?));
         #[cfg(not(any(
             feature = "mock",
-            feature = "upbc",
-            feature = "aags",
-            feature = "apgs",
-            feature = "aasv",
-            feature = "apsv",
+            feature = "dgcmsiv",
+            feature = "pgcmsiv",
+            feature = "dsiv",
+            feature = "psiv",
         )))]
         compile_error!("At least one oboron scheme must be enabled");
     }
@@ -1073,44 +864,37 @@ impl ObAny {
         return Ok(ObAny::Mock1C32(Mock1C32 {
             masterkey: MasterKey::from_bytes(key_bytes)?,
         }));
-        #[cfg(feature = "upbc")]
+        #[cfg(feature = "dgcmsiv")]
         #[cfg(not(any(feature = "mock")))]
-        return Ok(ObAny::UpbcC32(UpbcC32 {
+        return Ok(ObAny::DgcmsivC32(DgcmsivC32 {
             masterkey: MasterKey::from_bytes(key_bytes)?,
         }));
-        #[cfg(feature = "aags")]
-        #[cfg(not(any(feature = "mock", feature = "upbc")))]
-        return Ok(ObAny::AagsC32(AagsC32 {
+        #[cfg(feature = "pgcmsiv")]
+        #[cfg(not(any(feature = "mock", feature = "dgcmsiv")))]
+        return Ok(ObAny::PgcmsivC32(PgcmsivC32 {
             masterkey: MasterKey::from_bytes(key_bytes)?,
         }));
-        #[cfg(feature = "apgs")]
-        #[cfg(not(any(feature = "mock", feature = "upbc", feature = "aags")))]
-        return Ok(ObAny::ApgsC32(ApgsC32 {
+        #[cfg(feature = "dsiv")]
+        #[cfg(not(any(feature = "mock", feature = "dgcmsiv", feature = "pgcmsiv")))]
+        return Ok(ObAny::DsivC32(DsivC32 {
             masterkey: MasterKey::from_bytes(key_bytes)?,
         }));
-        #[cfg(feature = "aasv")]
-        #[cfg(not(any(feature = "mock", feature = "upbc", feature = "aags", feature = "apgs")))]
-        return Ok(ObAny::AasvC32(AasvC32 {
-            masterkey: MasterKey::from_bytes(key_bytes)?,
-        }));
-        #[cfg(feature = "apsv")]
+        #[cfg(feature = "psiv")]
         #[cfg(not(any(
-            feature = "aags",
-            feature = "aasv",
-            feature = "apgs",
+            feature = "dgcmsiv",
+            feature = "dsiv",
+            feature = "pgcmsiv",
             feature = "mock",
-            feature = "upbc",
         )))]
-        return Ok(ObAny::ApsvC32(ApsvC32 {
+        return Ok(ObAny::PsivC32(PsivC32 {
             masterkey: MasterKey::from_bytes(key_bytes)?,
         }));
         #[cfg(not(any(
-            feature = "aags",
-            feature = "aasv",
-            feature = "apgs",
-            feature = "apsv",
+            feature = "dgcmsiv",
+            feature = "dsiv",
+            feature = "pgcmsiv",
+            feature = "psiv",
             feature = "mock",
-            feature = "upbc",
         )))]
         compile_error!("At least one oboron scheme must be enabled");
     }
@@ -1118,34 +902,29 @@ impl ObAny {
     pub fn from_hex_key(key_hex: &str) -> Result<Self, Error> {
         #[cfg(feature = "mock")]
         return Ok(ObAny::Mock1C32(Mock1C32::from_hex_key(key_hex)?));
-        #[cfg(feature = "upbc")]
+        #[cfg(feature = "dgcmsiv")]
         #[cfg(not(any(feature = "mock")))]
-        return Ok(ObAny::UpbcC32(UpbcC32::from_hex_key(key_hex)?));
-        #[cfg(feature = "aags")]
-        #[cfg(not(any(feature = "mock", feature = "upbc")))]
-        return Ok(ObAny::AagsC32(AagsC32::from_hex_key(key_hex)?));
-        #[cfg(feature = "apgs")]
-        #[cfg(not(any(feature = "mock", feature = "upbc", feature = "aags")))]
-        return Ok(ObAny::ApgsC32(ApgsC32::from_hex_key(key_hex)?));
-        #[cfg(feature = "aasv")]
-        #[cfg(not(any(feature = "mock", feature = "upbc", feature = "aags", feature = "apgs")))]
-        return Ok(ObAny::AasvC32(AasvC32::from_hex_key(key_hex)?));
-        #[cfg(feature = "apsv")]
+        return Ok(ObAny::DgcmsivC32(DgcmsivC32::from_hex_key(key_hex)?));
+        #[cfg(feature = "pgcmsiv")]
+        #[cfg(not(any(feature = "mock", feature = "dgcmsiv")))]
+        return Ok(ObAny::PgcmsivC32(PgcmsivC32::from_hex_key(key_hex)?));
+        #[cfg(feature = "dsiv")]
+        #[cfg(not(any(feature = "mock", feature = "dgcmsiv", feature = "pgcmsiv")))]
+        return Ok(ObAny::DsivC32(DsivC32::from_hex_key(key_hex)?));
+        #[cfg(feature = "psiv")]
         #[cfg(not(any(
             feature = "mock",
-            feature = "upbc",
-            feature = "aags",
-            feature = "apgs",
-            feature = "aasv"
+            feature = "dgcmsiv",
+            feature = "pgcmsiv",
+            feature = "dsiv"
         )))]
-        return Ok(ObAny::ApsvC32(ApsvC32::from_hex_key(key_hex)?));
+        return Ok(ObAny::PsivC32(PsivC32::from_hex_key(key_hex)?));
         #[cfg(not(any(
             feature = "mock",
-            feature = "upbc",
-            feature = "aags",
-            feature = "apgs",
-            feature = "aasv",
-            feature = "apsv",
+            feature = "dgcmsiv",
+            feature = "pgcmsiv",
+            feature = "dsiv",
+            feature = "psiv",
         )))]
         compile_error!("At least one oboron scheme must be enabled");
     }
@@ -1159,44 +938,37 @@ impl ObAny {
         return Ok(ObAny::Mock1C32(Mock1C32 {
             masterkey: MasterKey::from_bytes(&HARDCODED_KEY_BYTES)?,
         }));
-        #[cfg(feature = "upbc")]
+        #[cfg(feature = "dgcmsiv")]
         #[cfg(not(any(feature = "mock")))]
-        return Ok(ObAny::UpbcC32(UpbcC32 {
+        return Ok(ObAny::DgcmsivC32(DgcmsivC32 {
             masterkey: MasterKey::from_bytes(&HARDCODED_KEY_BYTES)?,
         }));
-        #[cfg(feature = "aags")]
-        #[cfg(not(any(feature = "mock", feature = "upbc")))]
-        return Ok(ObAny::AagsC32(AagsC32 {
+        #[cfg(feature = "pgcmsiv")]
+        #[cfg(not(any(feature = "mock", feature = "dgcmsiv")))]
+        return Ok(ObAny::PgcmsivC32(PgcmsivC32 {
             masterkey: MasterKey::from_bytes(&HARDCODED_KEY_BYTES)?,
         }));
-        #[cfg(feature = "apgs")]
-        #[cfg(not(any(feature = "mock", feature = "upbc", feature = "aags")))]
-        return Ok(ObAny::ApgsC32(ApgsC32 {
+        #[cfg(feature = "dsiv")]
+        #[cfg(not(any(feature = "mock", feature = "dgcmsiv", feature = "pgcmsiv")))]
+        return Ok(ObAny::DsivC32(DsivC32 {
             masterkey: MasterKey::from_bytes(&HARDCODED_KEY_BYTES)?,
         }));
-        #[cfg(feature = "aasv")]
-        #[cfg(not(any(feature = "mock", feature = "upbc", feature = "aags", feature = "apgs")))]
-        return Ok(ObAny::AasvC32(AasvC32 {
-            masterkey: MasterKey::from_bytes(&HARDCODED_KEY_BYTES)?,
-        }));
-        #[cfg(feature = "apsv")]
+        #[cfg(feature = "psiv")]
         #[cfg(not(any(
             feature = "mock",
-            feature = "upbc",
-            feature = "aags",
-            feature = "apgs",
-            feature = "aasv"
+            feature = "dgcmsiv",
+            feature = "pgcmsiv",
+            feature = "dsiv"
         )))]
-        return Ok(ObAny::ApsvC32(ApsvC32 {
+        return Ok(ObAny::PsivC32(PsivC32 {
             masterkey: MasterKey::from_bytes(&HARDCODED_KEY_BYTES)?,
         }));
         #[cfg(not(any(
             feature = "mock",
-            feature = "upbc",
-            feature = "aags",
-            feature = "apgs",
-            feature = "aasv",
-            feature = "apsv",
+            feature = "dgcmsiv",
+            feature = "pgcmsiv",
+            feature = "dsiv",
+            feature = "psiv",
         )))]
         compile_error!("At least one oboron scheme must be enabled");
     }
@@ -1244,46 +1016,38 @@ pub fn new(fmt: &str, key: &str) -> Result<ObAny, Error> {
 /// Create an encoder from a pre-parsed Format and base64 key.
 pub fn new_with_format(format: Format, key: &str) -> Result<ObAny, Error> {
     match (format.scheme(), format.encoding()) {
-        #[cfg(feature = "upbc")]
-        (Scheme::Upbc, Encoding::C32) => Ok(ObAny::UpbcC32(UpbcC32::new(key)?)),
-        #[cfg(feature = "upbc")]
-        (Scheme::Upbc, Encoding::B32) => Ok(ObAny::UpbcB32(UpbcB32::new(key)?)),
-        #[cfg(feature = "upbc")]
-        (Scheme::Upbc, Encoding::B64) => Ok(ObAny::UpbcB64(UpbcB64::new(key)?)),
-        #[cfg(feature = "upbc")]
-        (Scheme::Upbc, Encoding::Hex) => Ok(ObAny::UpbcHex(UpbcHex::new(key)?)),
-        #[cfg(feature = "aags")]
-        (Scheme::Aags, Encoding::C32) => Ok(ObAny::AagsC32(AagsC32::new(key)?)),
-        #[cfg(feature = "aags")]
-        (Scheme::Aags, Encoding::B32) => Ok(ObAny::AagsB32(AagsB32::new(key)?)),
-        #[cfg(feature = "aags")]
-        (Scheme::Aags, Encoding::B64) => Ok(ObAny::AagsB64(AagsB64::new(key)?)),
-        #[cfg(feature = "aags")]
-        (Scheme::Aags, Encoding::Hex) => Ok(ObAny::AagsHex(AagsHex::new(key)?)),
-        #[cfg(feature = "apgs")]
-        (Scheme::Apgs, Encoding::C32) => Ok(ObAny::ApgsC32(ApgsC32::new(key)?)),
-        #[cfg(feature = "apgs")]
-        (Scheme::Apgs, Encoding::B32) => Ok(ObAny::ApgsB32(ApgsB32::new(key)?)),
-        #[cfg(feature = "apgs")]
-        (Scheme::Apgs, Encoding::B64) => Ok(ObAny::ApgsB64(ApgsB64::new(key)?)),
-        #[cfg(feature = "apgs")]
-        (Scheme::Apgs, Encoding::Hex) => Ok(ObAny::ApgsHex(ApgsHex::new(key)?)),
-        #[cfg(feature = "aasv")]
-        (Scheme::Aasv, Encoding::C32) => Ok(ObAny::AasvC32(AasvC32::new(key)?)),
-        #[cfg(feature = "aasv")]
-        (Scheme::Aasv, Encoding::B32) => Ok(ObAny::AasvB32(AasvB32::new(key)?)),
-        #[cfg(feature = "aasv")]
-        (Scheme::Aasv, Encoding::B64) => Ok(ObAny::AasvB64(AasvB64::new(key)?)),
-        #[cfg(feature = "aasv")]
-        (Scheme::Aasv, Encoding::Hex) => Ok(ObAny::AasvHex(AasvHex::new(key)?)),
-        #[cfg(feature = "apsv")]
-        (Scheme::Apsv, Encoding::C32) => Ok(ObAny::ApsvC32(ApsvC32::new(key)?)),
-        #[cfg(feature = "apsv")]
-        (Scheme::Apsv, Encoding::B32) => Ok(ObAny::ApsvB32(ApsvB32::new(key)?)),
-        #[cfg(feature = "apsv")]
-        (Scheme::Apsv, Encoding::B64) => Ok(ObAny::ApsvB64(ApsvB64::new(key)?)),
-        #[cfg(feature = "apsv")]
-        (Scheme::Apsv, Encoding::Hex) => Ok(ObAny::ApsvHex(ApsvHex::new(key)?)),
+        #[cfg(feature = "dgcmsiv")]
+        (Scheme::Dgcmsiv, Encoding::C32) => Ok(ObAny::DgcmsivC32(DgcmsivC32::new(key)?)),
+        #[cfg(feature = "dgcmsiv")]
+        (Scheme::Dgcmsiv, Encoding::B32) => Ok(ObAny::DgcmsivB32(DgcmsivB32::new(key)?)),
+        #[cfg(feature = "dgcmsiv")]
+        (Scheme::Dgcmsiv, Encoding::B64) => Ok(ObAny::DgcmsivB64(DgcmsivB64::new(key)?)),
+        #[cfg(feature = "dgcmsiv")]
+        (Scheme::Dgcmsiv, Encoding::Hex) => Ok(ObAny::DgcmsivHex(DgcmsivHex::new(key)?)),
+        #[cfg(feature = "pgcmsiv")]
+        (Scheme::Pgcmsiv, Encoding::C32) => Ok(ObAny::PgcmsivC32(PgcmsivC32::new(key)?)),
+        #[cfg(feature = "pgcmsiv")]
+        (Scheme::Pgcmsiv, Encoding::B32) => Ok(ObAny::PgcmsivB32(PgcmsivB32::new(key)?)),
+        #[cfg(feature = "pgcmsiv")]
+        (Scheme::Pgcmsiv, Encoding::B64) => Ok(ObAny::PgcmsivB64(PgcmsivB64::new(key)?)),
+        #[cfg(feature = "pgcmsiv")]
+        (Scheme::Pgcmsiv, Encoding::Hex) => Ok(ObAny::PgcmsivHex(PgcmsivHex::new(key)?)),
+        #[cfg(feature = "dsiv")]
+        (Scheme::Dsiv, Encoding::C32) => Ok(ObAny::DsivC32(DsivC32::new(key)?)),
+        #[cfg(feature = "dsiv")]
+        (Scheme::Dsiv, Encoding::B32) => Ok(ObAny::DsivB32(DsivB32::new(key)?)),
+        #[cfg(feature = "dsiv")]
+        (Scheme::Dsiv, Encoding::B64) => Ok(ObAny::DsivB64(DsivB64::new(key)?)),
+        #[cfg(feature = "dsiv")]
+        (Scheme::Dsiv, Encoding::Hex) => Ok(ObAny::DsivHex(DsivHex::new(key)?)),
+        #[cfg(feature = "psiv")]
+        (Scheme::Psiv, Encoding::C32) => Ok(ObAny::PsivC32(PsivC32::new(key)?)),
+        #[cfg(feature = "psiv")]
+        (Scheme::Psiv, Encoding::B32) => Ok(ObAny::PsivB32(PsivB32::new(key)?)),
+        #[cfg(feature = "psiv")]
+        (Scheme::Psiv, Encoding::B64) => Ok(ObAny::PsivB64(PsivB64::new(key)?)),
+        #[cfg(feature = "psiv")]
+        (Scheme::Psiv, Encoding::Hex) => Ok(ObAny::PsivHex(PsivHex::new(key)?)),
         // Testing
         #[cfg(feature = "mock")]
         (Scheme::Mock1, Encoding::C32) => Ok(ObAny::Mock1C32(Mock1C32::new(key)?)),
@@ -1308,85 +1072,69 @@ pub fn new_with_format(format: Format, key: &str) -> Result<ObAny, Error> {
 
 fn from_bytes_with_format_internal(format: Format, key_bytes: &[u8; 64]) -> Result<ObAny, Error> {
     match (format.scheme(), format.encoding()) {
-        #[cfg(feature = "upbc")]
-        (Scheme::Upbc, Encoding::C32) => {
-            Ok(ObAny::UpbcC32(UpbcC32::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "dgcmsiv")]
+        (Scheme::Dgcmsiv, Encoding::C32) => {
+            Ok(ObAny::DgcmsivC32(DgcmsivC32::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "upbc")]
-        (Scheme::Upbc, Encoding::B32) => {
-            Ok(ObAny::UpbcB32(UpbcB32::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "dgcmsiv")]
+        (Scheme::Dgcmsiv, Encoding::B32) => {
+            Ok(ObAny::DgcmsivB32(DgcmsivB32::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "upbc")]
-        (Scheme::Upbc, Encoding::B64) => {
-            Ok(ObAny::UpbcB64(UpbcB64::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "dgcmsiv")]
+        (Scheme::Dgcmsiv, Encoding::B64) => {
+            Ok(ObAny::DgcmsivB64(DgcmsivB64::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "upbc")]
-        (Scheme::Upbc, Encoding::Hex) => {
-            Ok(ObAny::UpbcHex(UpbcHex::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "dgcmsiv")]
+        (Scheme::Dgcmsiv, Encoding::Hex) => {
+            Ok(ObAny::DgcmsivHex(DgcmsivHex::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "aags")]
-        (Scheme::Aags, Encoding::C32) => {
-            Ok(ObAny::AagsC32(AagsC32::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "pgcmsiv")]
+        (Scheme::Pgcmsiv, Encoding::C32) => {
+            Ok(ObAny::PgcmsivC32(PgcmsivC32::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "aags")]
-        (Scheme::Aags, Encoding::B32) => {
-            Ok(ObAny::AagsB32(AagsB32::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "pgcmsiv")]
+        (Scheme::Pgcmsiv, Encoding::B32) => {
+            Ok(ObAny::PgcmsivB32(PgcmsivB32::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "aags")]
-        (Scheme::Aags, Encoding::B64) => {
-            Ok(ObAny::AagsB64(AagsB64::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "pgcmsiv")]
+        (Scheme::Pgcmsiv, Encoding::B64) => {
+            Ok(ObAny::PgcmsivB64(PgcmsivB64::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "aags")]
-        (Scheme::Aags, Encoding::Hex) => {
-            Ok(ObAny::AagsHex(AagsHex::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "pgcmsiv")]
+        (Scheme::Pgcmsiv, Encoding::Hex) => {
+            Ok(ObAny::PgcmsivHex(PgcmsivHex::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "apgs")]
-        (Scheme::Apgs, Encoding::C32) => {
-            Ok(ObAny::ApgsC32(ApgsC32::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "dsiv")]
+        (Scheme::Dsiv, Encoding::C32) => {
+            Ok(ObAny::DsivC32(DsivC32::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "apgs")]
-        (Scheme::Apgs, Encoding::B32) => {
-            Ok(ObAny::ApgsB32(ApgsB32::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "dsiv")]
+        (Scheme::Dsiv, Encoding::B32) => {
+            Ok(ObAny::DsivB32(DsivB32::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "apgs")]
-        (Scheme::Apgs, Encoding::B64) => {
-            Ok(ObAny::ApgsB64(ApgsB64::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "dsiv")]
+        (Scheme::Dsiv, Encoding::B64) => {
+            Ok(ObAny::DsivB64(DsivB64::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "apgs")]
-        (Scheme::Apgs, Encoding::Hex) => {
-            Ok(ObAny::ApgsHex(ApgsHex::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "dsiv")]
+        (Scheme::Dsiv, Encoding::Hex) => {
+            Ok(ObAny::DsivHex(DsivHex::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "aasv")]
-        (Scheme::Aasv, Encoding::C32) => {
-            Ok(ObAny::AasvC32(AasvC32::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "psiv")]
+        (Scheme::Psiv, Encoding::C32) => {
+            Ok(ObAny::PsivC32(PsivC32::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "aasv")]
-        (Scheme::Aasv, Encoding::B32) => {
-            Ok(ObAny::AasvB32(AasvB32::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "psiv")]
+        (Scheme::Psiv, Encoding::B32) => {
+            Ok(ObAny::PsivB32(PsivB32::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "aasv")]
-        (Scheme::Aasv, Encoding::B64) => {
-            Ok(ObAny::AasvB64(AasvB64::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "psiv")]
+        (Scheme::Psiv, Encoding::B64) => {
+            Ok(ObAny::PsivB64(PsivB64::from_bytes_internal(key_bytes)?))
         }
-        #[cfg(feature = "aasv")]
-        (Scheme::Aasv, Encoding::Hex) => {
-            Ok(ObAny::AasvHex(AasvHex::from_bytes_internal(key_bytes)?))
-        }
-        #[cfg(feature = "apsv")]
-        (Scheme::Apsv, Encoding::C32) => {
-            Ok(ObAny::ApsvC32(ApsvC32::from_bytes_internal(key_bytes)?))
-        }
-        #[cfg(feature = "apsv")]
-        (Scheme::Apsv, Encoding::B32) => {
-            Ok(ObAny::ApsvB32(ApsvB32::from_bytes_internal(key_bytes)?))
-        }
-        #[cfg(feature = "apsv")]
-        (Scheme::Apsv, Encoding::B64) => {
-            Ok(ObAny::ApsvB64(ApsvB64::from_bytes_internal(key_bytes)?))
-        }
-        #[cfg(feature = "apsv")]
-        (Scheme::Apsv, Encoding::Hex) => {
-            Ok(ObAny::ApsvHex(ApsvHex::from_bytes_internal(key_bytes)?))
+        #[cfg(feature = "psiv")]
+        (Scheme::Psiv, Encoding::Hex) => {
+            Ok(ObAny::PsivHex(PsivHex::from_bytes_internal(key_bytes)?))
         }
         // Testing
         #[cfg(feature = "mock")]
@@ -1499,16 +1247,14 @@ mod tests {
 
         // Define all schemes
         let schemes = vec![
-            #[cfg(feature = "upbc")]
-            Scheme::Upbc,
-            #[cfg(feature = "aags")]
-            Scheme::Aags,
-            #[cfg(feature = "apgs")]
-            Scheme::Apgs,
-            #[cfg(feature = "aasv")]
-            Scheme::Aasv,
-            #[cfg(feature = "apsv")]
-            Scheme::Apsv,
+            #[cfg(feature = "dgcmsiv")]
+            Scheme::Dgcmsiv,
+            #[cfg(feature = "pgcmsiv")]
+            Scheme::Pgcmsiv,
+            #[cfg(feature = "dsiv")]
+            Scheme::Dsiv,
+            #[cfg(feature = "psiv")]
+            Scheme::Psiv,
             // Testing
             #[cfg(feature = "mock")]
             Scheme::Mock1,
@@ -1558,16 +1304,14 @@ mod tests {
         let schemes = vec![
             Scheme::Mock2,
             Scheme::Mock1,
-            #[cfg(feature = "upbc")]
-            Scheme::Upbc,
-            #[cfg(feature = "aags")]
-            Scheme::Aags,
-            #[cfg(feature = "apgs")]
-            Scheme::Apgs,
-            #[cfg(feature = "aasv")]
-            Scheme::Aasv,
-            #[cfg(feature = "apsv")]
-            Scheme::Apsv,
+            #[cfg(feature = "dgcmsiv")]
+            Scheme::Dgcmsiv,
+            #[cfg(feature = "pgcmsiv")]
+            Scheme::Pgcmsiv,
+            #[cfg(feature = "dsiv")]
+            Scheme::Dsiv,
+            #[cfg(feature = "psiv")]
+            Scheme::Psiv,
         ];
 
         // Define all encodings
@@ -1610,10 +1354,10 @@ mod tests {
         let schemes = vec![
             Scheme::Mock2,
             Scheme::Mock1,
-            #[cfg(feature = "aags")]
-            Scheme::Aags,
-            #[cfg(feature = "aasv")]
-            Scheme::Aasv,
+            #[cfg(feature = "dgcmsiv")]
+            Scheme::Dgcmsiv,
+            #[cfg(feature = "dsiv")]
+            Scheme::Dsiv,
         ];
 
         // Define all encodings
@@ -1644,25 +1388,18 @@ mod tests {
     #[test]
     fn test_key_methods() {
         let key = crate::generate_key();
-        let aasv = AasvC32::new(&key).unwrap();
+        let dsiv = DsivC32::new(&key).unwrap();
 
-        // generate_key() returns 128-char hex; aasv.key() returns hex.
-        let retrieved_key = aasv.key();
+        // generate_key() returns 128-char hex; dsiv.key() returns hex.
+        let retrieved_key = dsiv.key();
         assert_eq!(retrieved_key, key);
         assert_eq!(retrieved_key.len(), 128);
 
         // key_hex() is the canonical accessor.
-        let key_hex = aasv.key_hex();
+        let key_hex = dsiv.key_hex();
         assert_eq!(key_hex.len(), 128);
 
-        #[cfg(feature = "base64-keys")]
-        {
-            #[allow(deprecated)]
-            let key_b64 = aasv.key_base64();
-            assert_eq!(key_b64.len(), 86);
-        }
-
-        let key_bytes = aasv.key_bytes();
+        let key_bytes = dsiv.key_bytes();
         assert_eq!(key_bytes.len(), 64);
     }
 }

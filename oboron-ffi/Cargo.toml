@@ -1,0 +1,39 @@
+[package]
+name = "oboron-ffi"
+# Tracks the oboron Rust crate: 1.0.0-rc1 aligns with oboron protocol
+# spec 1.0 (authenticated-only core). The C ABI's stability surface is
+# the generated header.
+version = "1.0.0-rc1"
+edition = "2021"
+rust-version = "1.77.0"
+authors = ["Bojan Đuričković"]
+license = "MIT OR Apache-2.0"
+repository = "https://gitlab.com/oboron/oboron-rs"
+description = "C ABI for oboron — a thin extern \"C\" surface so non-Rust languages (Perl, C#, Java via Panama, Ruby, …) can call oboron through FFI."
+homepage = "https://oboron.org/"
+documentation = "https://oboron.org/"
+# Ships as a built shared/static library plus a C header, not as a
+# crates.io dependency — a cdylib isn't consumable from Cargo. Each
+# language binding (oboron-perl, …) builds or bundles this artifact.
+publish = false
+
+[lib]
+name = "oboron_ffi"
+# cdylib → liboboron_ffi.{so,dylib,dll} for runtime FFI (Perl, C#,
+# Java/Panama); staticlib → liboboron_ffi.a for static embedding.
+crate-type = ["cdylib", "staticlib"]
+
+[features]
+# Mirror oboron's scheme gating so a consumer can trim the ABI to the
+# schemes it needs. Default is the four authenticated core schemes +
+# keyless (which obsigil's manifest layer relies on).
+default = ["secure-schemes", "keyless"]
+secure-schemes = ["dgcmsiv", "pgcmsiv", "dsiv", "psiv"]
+dgcmsiv = ["oboron/dgcmsiv"]
+pgcmsiv = ["oboron/pgcmsiv"]
+dsiv = ["oboron/dsiv"]
+psiv = ["oboron/psiv"]
+keyless = ["oboron/keyless"]
+
+[dependencies]
+oboron = { path = "../oboron", default-features = false }

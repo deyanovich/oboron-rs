@@ -118,20 +118,20 @@ fn test_mock1_dec() {
 }
 
 #[test]
-#[cfg(feature = "aasv")]
+#[cfg(feature = "dsiv")]
 fn test_mock1_cannot_dec_other_schemes_strict() {
     let key = oboron::generate_key();
     let mock1 = oboron::Ob::new("mock1.c32", &key).unwrap();
-    let aasv = oboron::Ob::new("aasv.c32", &key).unwrap();
+    let dsiv = oboron::Ob::new("dsiv.c32", &key).unwrap();
 
     let plaintext = "cross-scheme test";
-    let ot_aasv = aasv.enc(plaintext).unwrap();
+    let ot_dsiv = dsiv.enc(plaintext).unwrap();
 
     // Strict dec should fail when scheme doesn't match
-    assert!(mock1.dec(&ot_aasv).is_err());
+    assert!(mock1.dec(&ot_dsiv).is_err());
 
-    // But scheme-autodetecting dec should work
-    assert_eq!(mock1.autodec(&ot_aasv).unwrap(), plaintext);
+    // But decoding with the matching scheme works.
+    assert_eq!(dsiv.dec(&ot_dsiv).unwrap(), plaintext);
 }
 
 #[test]
@@ -195,18 +195,6 @@ fn test_mock1_convenience_functions() {
     let ot = oboron::enc(plaintext, "mock1.c32", &key).unwrap();
     let pt2 = oboron::dec(&ot, "mock1.c32", &key).unwrap();
 
-    assert_eq!(pt2, plaintext);
-}
-
-#[test]
-fn test_mock1_autodec() {
-    let key = oboron::generate_key();
-
-    let plaintext = "autodec test";
-    let ot = oboron::enc(plaintext, "mock1.c32", &key).unwrap();
-
-    // Autodec should work without specifying format
-    let pt2 = oboron::autodec(&ot, &key).unwrap();
     assert_eq!(pt2, plaintext);
 }
 
@@ -299,9 +287,8 @@ fn test_mock1_encoding_mismatch() {
     // Strict dec with wrong encoding should fail
     assert!(ob_b64.dec(&enc_b32).is_err());
 
-    // But autodetect dec won't work across encodings
-    // (autodetect only handles scheme, not encoding)
-    assert_eq!(ob_b64.autodec(&enc_b32).unwrap(), plaintext);
+    // Decoding with the matching encoding works.
+    assert_eq!(ob_b32.dec(&enc_b32).unwrap(), plaintext);
 }
 
 #[test]

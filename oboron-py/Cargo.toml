@@ -1,15 +1,15 @@
 [package]
 name = "oboron-py"
-# Decoupled from the oboron Rust crate version: the Python package on
-# PyPI follows its own release cadence. Tracks oboron 0.9.x at this
-# revision (z-tier hex-canonical sweep).
-version = "0.9.0"
+# Tracks the oboron Rust crate: 1.0.0-rc1 aligns with oboron protocol
+# spec 1.0 — authenticated-only core. The unauthenticated/obfuscation
+# (obu) layer is a separate package and is NOT bound here.
+version = "1.0.0-rc1"
 edition = "2021"
 rust-version = "1.77.0"
 authors = ["Bojan Đuričković"]
-license = "MIT"
+license = "MIT OR Apache-2.0"
 repository = "https://gitlab.com/oboron/oboron-rs"
-description = "Python bindings for oboron — string-in/string-out symmetric encryption + encoding (Aags, Aasv, Apgs, Apsv, Upbc, Zrbcx)."
+description = "Python bindings for oboron — string-in/string-out authenticated symmetric encryption + encoding (Dgcmsiv, Dsiv, Pgcmsiv, Psiv)."
 keywords = ["python", "encryption", "encoding", "cryptography", "oboron"]
 categories = ["cryptography", "api-bindings"]
 readme = "README.md"
@@ -24,45 +24,28 @@ name = "_oboron"
 crate-type = ["cdylib"]
 
 [features]
-# Default: everything an end user typically wants — the five a/u-tier
-# secure schemes, the z-tier obfuscation scheme, the legacy scheme,
-# mock schemes for testing, keyless constructors, and base64 key
-# acceptance (transitional; will be dropped when oboron core drops it
-# before its 1.0).
-default = [
-    "secure-schemes",
-    "zrbcx",
-    "legacy",
-    "mock",
-    "keyless",
-    "base64-keys",
-]
+# Default: the four authenticated core schemes, mock schemes for
+# testing, and keyless constructors.
+default = ["secure-schemes", "mock", "keyless"]
 
-# Aggregate: the five production-grade schemes from the a-tier
-# (authenticated) and u-tier (unauthenticated-but-real cryptography).
-secure-schemes = ["aags", "apgs", "aasv", "apsv", "upbc"]
+# Aggregate: the four authenticated core schemes.
+secure-schemes = ["dgcmsiv", "pgcmsiv", "dsiv", "psiv"]
 
 # Individual schemes — each forwards to the oboron core feature that
 # gates the wrapper code there, and is also used as a local cfg gate
 # in src/lib.rs to omit the per-scheme Python classes when disabled.
-aags = ["oboron/aags"]
-apgs = ["oboron/apgs"]
-aasv = ["oboron/aasv"]
-apsv = ["oboron/apsv"]
-upbc = ["oboron/upbc"]
-zrbcx = ["oboron/zrbcx"]
-legacy = ["oboron/legacy"]
+dgcmsiv = ["oboron/dgcmsiv"]
+pgcmsiv = ["oboron/pgcmsiv"]
+dsiv = ["oboron/dsiv"]
+psiv = ["oboron/psiv"]
+
+# Mock1/Mock2 (no encryption; testing only).
 mock = ["oboron/mock"]
 
 # Hardcoded-key constructors (`new_keyless`, `enc_keyless`, …) for
-# testing and obfuscation-only contexts. Pulled in by default.
+# testing. Pulled in by default.
 keyless = ["oboron/keyless"]
 
-# Transitional: accept 86-character base64 strings wherever a key is
-# expected, alongside the canonical 128-character hex. Will go away
-# when oboron core drops the gate before its 1.0.
-base64-keys = ["oboron/base64-keys"]
-
 [dependencies]
-oboron = { version = "0.9", default-features = false }
+oboron = { path = "../oboron", default-features = false }
 pyo3.workspace = true

@@ -1,5 +1,5 @@
 [workspace]
-members = ["oboron", "oboron-py"]
+members = ["oboron", "oboron-py", "oboron-wasm", "oboron-ffi"]
 resolver = "2"
 
 # Release / bench profiles defined at the workspace level so they
@@ -16,15 +16,18 @@ codegen-units = 1
 inherits = "release"
 
 [workspace.dependencies]
-# Internal: bytes-in/bytes-out cryptographic core (published on
-# crates.io now that 0.2.0 is out — no longer a path dep on the
-# sibling workspace).
-obcrypt = { version = "0.2.0", default-features = false }
+# Internal: bytes-in/bytes-out cryptographic core (the released
+# 1.0 RC on crates.io; not a path dep on the sibling workspace).
+obcrypt = { version = "1.0.0-rc1", default-features = false }
 
 # PyO3 for the oboron-py bindings. abi3-py38 builds one stable-ABI
 # wheel per platform that covers CPython 3.8+, instead of one wheel
 # per Python minor version.
 pyo3 = { version = "0.28", features = ["extension-module", "abi3-py38"] }
+
+# wasm-bindgen for the oboron-wasm npm bindings.
+wasm-bindgen = "0.2"
+wasm-bindgen-test = "0.3"
 
 # Crypto dependencies
 aes = "0.8"

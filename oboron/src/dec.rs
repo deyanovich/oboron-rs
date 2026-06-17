@@ -1,6 +1,5 @@
 use crate::{
     base32::{BASE32_CROCKFORD, BASE32_RFC},
-    constants::SCHEME_MARKER_SIZE,
     error::Error,
     Encoding, Format, Scheme,
 };
@@ -8,54 +7,34 @@ use data_encoding::{BASE64URL_NOPAD, HEXLOWER};
 
 /// Generic decoding pipeline.
 ///
-/// Decodes obtext to payload bytes, undoes the 2-byte XOR'd marker
-/// framing, verifies the marker matches the expected scheme, then
-/// calls obcrypt's per-scheme `decrypt` directly. Bypasses
-/// `obcrypt::decrypt_as` deliberately — same reason as the encrypt
-/// path: extra framed-API indirection costs measurable time on this
-/// hot path under `opt-level = "z"`.
+/// Decodes obtext to the scheme output bytes, then calls obcrypt's
+/// per-scheme `decrypt` directly. The obtext carries no scheme marker
+/// (the no-marker model): the scheme is fixed by `format`, and
+/// supplying the wrong scheme fails the AEAD tag check
+/// (`DecryptionFailed`) rather than being caught by a marker compare.
+/// Bypasses `obcrypt::decrypt` deliberately — same hot-path reason as
+/// the encrypt path.
 #[inline(always)]
 pub(crate) fn dec_from_format(
     obtext: &str,
     format: Format,
     master_key: &obcrypt::Key,
 ) -> Result<String, Error> {
-    let mut buffer = decode_obtext_to_payload(obtext, format.encoding())?;
-
-    if buffer.len() < SCHEME_MARKER_SIZE {
-        return Err(Error::PayloadTooShort);
-    }
-
-    // Undo XOR'd marker, validate, truncate.
-    let len = buffer.len();
-    let first_byte = buffer[0];
-    let scheme_marker = [buffer[len - 2] ^ first_byte, buffer[len - 1] ^ first_byte];
-    if scheme_marker != format.scheme().marker() {
-        return Err(Error::SchemeMarkerMismatch);
-    }
-    buffer.truncate(len - SCHEME_MARKER_SIZE);
+    let buffer = decode_obtext_to_payload(obtext, format.encoding())?;
 
     let plaintext_bytes = match format.scheme() {
-        #[cfg(feature = "aags")]
-        Scheme::Aags => obcrypt::schemes::aags::decrypt(&buffer, master_key)?,
-        #[cfg(feature = "apgs")]
-        Scheme::Apgs => obcrypt::schemes::apgs::decrypt(&buffer, master_key)?,
-        #[cfg(feature = "aasv")]
-        Scheme::Aasv => obcrypt::schemes::aasv::decrypt(&buffer, master_key)?,
-        #[cfg(feature = "apsv")]
-        Scheme::Apsv => obcrypt::schemes::apsv::decrypt(&buffer, master_key)?,
-        #[cfg(feature = "upbc")]
-        Scheme::Upbc => obcrypt::schemes::upbc::decrypt(&buffer, master_key)?,
+        #[cfg(feature = "dgcmsiv")]
+        Scheme::Dgcmsiv => obcrypt::schemes::dgcmsiv::decrypt(&buffer, master_key)?,
+        #[cfg(feature = "pgcmsiv")]
+        Scheme::Pgcmsiv => obcrypt::schemes::pgcmsiv::decrypt(&buffer, master_key)?,
+        #[cfg(feature = "dsiv")]
+        Scheme::Dsiv => obcrypt::schemes::dsiv::decrypt(&buffer, master_key)?,
+        #[cfg(feature = "psiv")]
+        Scheme::Psiv => obcrypt::schemes::psiv::decrypt(&buffer, master_key)?,
         #[cfg(feature = "mock")]
         Scheme::Mock1 => obcrypt::schemes::mock1::decrypt(&buffer, master_key)?,
         #[cfg(feature = "mock")]
         Scheme::Mock2 => obcrypt::schemes::mock2::decrypt(&buffer, master_key)?,
-        #[cfg(feature = "zrbcx")]
-        Scheme::Zrbcx => unreachable!("ztier uses separate path"),
-        #[cfg(feature = "mock")]
-        Scheme::Zmock1 => unreachable!("ztier uses separate path"),
-        #[cfg(feature = "legacy")]
-        Scheme::Legacy => unreachable!("legacy uses separate path"),
     };
 
     #[cfg(feature = "unchecked-utf8")]

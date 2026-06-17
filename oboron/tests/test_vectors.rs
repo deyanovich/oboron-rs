@@ -66,17 +66,6 @@ fn test_all_vectors() {
                 vector.obtext, vector.format, vector.plaintext, pt2
             );
 
-            // Test autodetection
-            let autodetected = omb
-                .autodec(&vector.obtext)
-                .unwrap_or_else(|e| panic!("Failed to autodetect '{}': {:?}", vector.obtext, e));
-
-            assert_eq!(
-                autodetected, vector.plaintext,
-                "Autodetection mismatch for '{}'\nExpected: {}\nGot: {}",
-                vector.obtext, vector.plaintext, autodetected
-            );
-
             // Test that we can enc and then dec (roundtrip)
             let new_ot = omb
                 .enc(&vector.plaintext, &vector.format)
@@ -130,17 +119,6 @@ fn test_all_vectors() {
                 pt2, vector.plaintext,
                 "Decoding mismatch for '{}' with format '{}'\nExpected: {}\nGot: {}",
                 vector.obtext, vector.format, vector.plaintext, pt2
-            );
-
-            // Test autodetection
-            let autodetected = omb
-                .autodec(&vector.obtext)
-                .unwrap_or_else(|e| panic!("Failed to autodetect '{}': {:?}", vector.obtext, e));
-
-            assert_eq!(
-                autodetected, vector.plaintext,
-                "Autodetection mismatch for '{}'\nExpected: {}\nGot: {}",
-                vector.obtext, vector.plaintext, autodetected
             );
         }
     }

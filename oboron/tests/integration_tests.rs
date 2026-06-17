@@ -7,44 +7,30 @@ fn test_available_schemes() {
 
     // Test each scheme if its feature is enabled
 
-    #[cfg(feature = "zrbcx")]
+    #[cfg(feature = "dgcmsiv")]
     {
-        let ob = oboron::ztier::ZrbcxC32::new_keyless().unwrap();
+        let ob = oboron::DgcmsivC32::new(&key).unwrap();
         let enc = ob.enc("test").unwrap();
         assert_eq!(ob.dec(&enc).unwrap(), "test");
     }
 
-    #[cfg(feature = "upbc")]
+    #[cfg(feature = "pgcmsiv")]
     {
-        let ob = oboron::UpbcC32::new(&key).unwrap();
+        let ob = oboron::PgcmsivC32::new(&key).unwrap();
         let enc = ob.enc("test").unwrap();
         assert_eq!(ob.dec(&enc).unwrap(), "test");
     }
 
-    #[cfg(feature = "aags")]
+    #[cfg(feature = "dsiv")]
     {
-        let ob = oboron::AagsC32::new(&key).unwrap();
+        let ob = oboron::DsivC32::new(&key).unwrap();
         let enc = ob.enc("test").unwrap();
         assert_eq!(ob.dec(&enc).unwrap(), "test");
     }
 
-    #[cfg(feature = "apgs")]
+    #[cfg(feature = "psiv")]
     {
-        let ob = oboron::ApgsC32::new(&key).unwrap();
-        let enc = ob.enc("test").unwrap();
-        assert_eq!(ob.dec(&enc).unwrap(), "test");
-    }
-
-    #[cfg(feature = "aasv")]
-    {
-        let ob = oboron::AasvC32::new(&key).unwrap();
-        let enc = ob.enc("test").unwrap();
-        assert_eq!(ob.dec(&enc).unwrap(), "test");
-    }
-
-    #[cfg(feature = "apsv")]
-    {
-        let ob = oboron::ApsvC32::new(&key).unwrap();
+        let ob = oboron::PsivC32::new(&key).unwrap();
         let enc = ob.enc("test").unwrap();
         assert_eq!(ob.dec(&enc).unwrap(), "test");
     }
@@ -53,15 +39,15 @@ fn test_available_schemes() {
 #[test]
 fn test_format_string_parsing() {
     // Test parsing format strings for enabled schemes
-    #[cfg(feature = "aasv")]
+    #[cfg(feature = "dsiv")]
     {
         use oboron::Format;
-        let format = Format::from_str("aasv.c32").unwrap();
-        assert_eq!(format.to_string(), "aasv.c32");
+        let format = Format::from_str("dsiv.c32").unwrap();
+        assert_eq!(format.to_string(), "dsiv.c32");
     }
 
-    // Test that disabled schemes return error
-    #[cfg(not(feature = "zrbcx"))]
+    // z-tier scheme strings live in the `obu` crate now and are not
+    // valid oboron formats.
     {
         use oboron::Format;
         assert!(Format::from_str("zrbcx.c32").is_err());
@@ -78,21 +64,21 @@ fn test_ob_any_default() {
 }
 
 // Cross-scheme decoding test (only if multiple schemes enabled)
-#[cfg(all(feature = "aags", feature = "aasv"))]
+#[cfg(all(feature = "dgcmsiv", feature = "dsiv"))]
 #[test]
 fn test_cross_scheme_decoding() {
     let key = oboron::generate_key();
-    let aags = oboron::Ob::new("aags.c32", &key).unwrap();
-    let aasv = oboron::Ob::new("aasv.c32", &key).unwrap();
+    let dgcmsiv = oboron::Ob::new("dgcmsiv.c32", &key).unwrap();
+    let dsiv = oboron::Ob::new("dsiv.c32", &key).unwrap();
 
-    let enc31 = aags.enc("hello").unwrap();
-    let enc32 = aasv.enc("world").unwrap();
+    let enc31 = dgcmsiv.enc("hello").unwrap();
+    let enc32 = dsiv.enc("world").unwrap();
 
-    // Auto-detection should work across schemes
-    assert_eq!(aags.autodec(&enc32).unwrap(), "world");
-    assert_eq!(aasv.autodec(&enc31).unwrap(), "hello");
+    // Decoding with the matching scheme works.
+    assert_eq!(dsiv.dec(&enc32).unwrap(), "world");
+    assert_eq!(dgcmsiv.dec(&enc31).unwrap(), "hello");
 
-    // Strict decoding should fail
-    assert!(aags.dec(&enc32).is_err());
-    assert!(aasv.dec(&enc31).is_err());
+    // Strict decoding with the wrong scheme should fail.
+    assert!(dgcmsiv.dec(&enc32).is_err());
+    assert!(dsiv.dec(&enc31).is_err());
 }

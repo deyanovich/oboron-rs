@@ -107,18 +107,6 @@ fn run_ob_benchmarks(c: &mut Criterion) {
                     });
                 }
             }
-            "autodec" => {
-                if let Some(precompute) = spec.precompute {
-                    // Precompute and set format outside timed loop
-                    let ot = precompute_value(&precompute, &ob);
-                    bench_count += 1;
-
-                    // Only the dec operation is timed
-                    c.bench_function(&spec.id, |b| {
-                        b.iter(|| ob.autodec(black_box(&ot)).unwrap());
-                    });
-                }
-            }
             _ => {
                 eprintln!(
                     "Skipping {} - unsupported operation: {}",

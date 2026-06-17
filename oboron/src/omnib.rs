@@ -2,34 +2,31 @@
 use crate::constants::HARDCODED_KEY_BYTES;
 use crate::{format::IntoFormat, Error, MasterKey};
 
-/// An ObtextCodec implementation that takes format on enc operation
-/// and autodetects on dec operation.
+/// An ObtextCodec that takes the format per operation.
 ///
-/// Unlike all other implementations (`Ob`, `ZrbcxC32`, …) it does not
-/// have a format stored internally. This struct allows specifying the
-/// format (scheme + encoding) at enc call time, and automatically
-/// detects both scheme and encoding on dec calls. It is the only
-/// `ObtextCodec` implementation that does full format autodetection;
-/// all others can autodetect the scheme only (e.g. `upbc`), not the
-/// encoding (base32 / base64 / etc.).
+/// Unlike the other implementations (`Ob`, `DsivC32`, …) it stores no
+/// format internally: the format (scheme + encoding) is supplied at
+/// each `enc` / `dec` call. The scheme is never detected — oboron
+/// obtext carries no scheme marker, so the caller supplies the format,
+/// exactly like the key.
 ///
 /// # Examples
 ///
 /// ```rust
 /// # fn main() -> Result<(), oboron::Error> {
-/// # #[cfg(all(feature = "aasv", feature = "mock"))]
+/// # #[cfg(all(feature = "dsiv", feature = "mock"))]
 /// # {
 /// # use oboron::{Omnib, MOCK1_B64};
 /// # let key = oboron::generate_key();
 /// let omb = Omnib::new(&key)?;
 ///
-/// // Encode with explicit format
-/// let ot1 = omb.enc("hello", "aasv.c32")?;
+/// // Encode with an explicit format
+/// let ot1 = omb.enc("hello", "dsiv.c32")?;
 /// let ot2 = omb.enc("world", MOCK1_B64)?;
 ///
-/// // autodec detects both scheme and encoding
-/// let pt1 = omb.autodec(&ot1)?;
-/// let pt2 = omb.autodec(&ot2)?;
+/// // Decode with the same format
+/// let pt1 = omb.dec(&ot1, "dsiv.c32")?;
+/// let pt2 = omb.dec(&ot2, MOCK1_B64)?;
 /// # }
 /// # Ok(())
 /// # }
@@ -39,16 +36,10 @@ pub struct Omnib {
 }
 
 impl Omnib {
-    /// Create a new `Omnib` instance from a key string.
-    ///
-    /// The key format is auto-detected by length: 128 chars → hex
-    /// (canonical), 86 chars → base64 (deprecated; behind the
-    /// `base64-keys` feature). For raw bytes use [`Self::from_bytes`].
-    /// For format-explicit constructors see [`Self::from_key_hex`] /
-    /// [`Self::from_key_base64`].
-    ///
-    /// The base64 path is transitional and will be removed before
-    /// oboron 1.0 — migrate keys to hex.
+    /// Create a new `Omnib` instance from a 128-character hex key
+    /// string (the canonical key form). For raw bytes use
+    /// [`Self::from_bytes`]; [`Self::from_hex_key`] is the
+    /// explicit-hex equivalent.
     pub fn new(key: &str) -> Result<Self, Error> {
         Ok(Self {
             masterkey: MasterKey::from_string(key)?,
@@ -69,15 +60,15 @@ impl Omnib {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
-    /// # use oboron::{Omnib, Format, Scheme, Encoding, AASV_B64};
+    /// # use oboron::{Omnib, Format, Scheme, Encoding, DSIV_B64};
     /// # let key = oboron::generate_key();
     /// let omb = Omnib::new(&key)?;
     ///
-    /// let ot1 = omb.enc("hello", "aasv.b64")?;                          // format string
-    /// let ot2 = omb.enc("hello", Format::new(Scheme::Aasv, Encoding::B64))?; // Format instance
-    /// let ot3 = omb.enc("hello", AASV_B64)?;                            // format constant
+    /// let ot1 = omb.enc("hello", "dsiv.b64")?;                          // format string
+    /// let ot2 = omb.enc("hello", Format::new(Scheme::Dsiv, Encoding::B64))?; // Format instance
+    /// let ot3 = omb.enc("hello", DSIV_B64)?;                            // format constant
     /// # }
     /// # Ok(())
     /// # }
@@ -96,14 +87,14 @@ impl Omnib {
     ///
     /// ```rust
     /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
+    /// # #[cfg(feature = "dsiv")]
     /// # {
     /// # use oboron::{Omnib, Format, Scheme, Encoding};
     /// # let key = oboron::generate_key();
     /// # let omb = Omnib::new(&key)?;
-    /// # let ot = omb.enc("test", "aasv.b64")?;
-    /// let pt1 = omb.dec(&ot, "aasv.b64")?;
-    /// let pt2 = omb.dec(&ot, Format::new(Scheme::Aasv, Encoding::B64))?;
+    /// # let ot = omb.enc("test", "dsiv.b64")?;
+    /// let pt1 = omb.dec(&ot, "dsiv.b64")?;
+    /// let pt2 = omb.dec(&ot, Format::new(Scheme::Dsiv, Encoding::B64))?;
     /// # }
     /// # Ok(())
     /// # }
@@ -114,45 +105,9 @@ impl Omnib {
         crate::dec::dec_from_format(obtext, format, self.masterkey.obcrypt_key())
     }
 
-    /// Decode+decrypt with automatic scheme and encoding detection.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// # fn main() -> Result<(), oboron::Error> {
-    /// # #[cfg(feature = "aasv")]
-    /// # {
-    /// # use oboron::Omnib;
-    /// # let key = oboron::generate_key();
-    /// # let omb = Omnib::new(&key)?;
-    /// let ot = omb.enc("hello", "aasv.b64")?;
-    /// let pt2 = omb.autodec(&ot)?;
-    /// assert_eq!(pt2, "hello");
-    /// # }
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn autodec(&self, obtext: &str) -> Result<String, Error> {
-        crate::dec_auto::dec_any_format(&self.masterkey, obtext)
-    }
-
     /// Get the key used by this instance, encoded as 128-char hex.
     pub fn key(&self) -> String {
         self.masterkey.key_hex()
-    }
-
-    /// Get the key used by this instance, encoded as base64.
-    ///
-    /// Deprecated: oboron is moving to hex-only keys before v1.0.
-    /// Use [`Self::key`] (or [`Self::key_hex`]) instead.
-    #[cfg(feature = "base64-keys")]
-    #[deprecated(
-        since = "0.7.1",
-        note = "use Omnib::key() (hex) instead; base64 key support will be removed before oboron 1.0"
-    )]
-    pub fn key_base64(&self) -> String {
-        #[allow(deprecated)]
-        self.masterkey.key_base64()
     }
 
     /// Get the key used by this instance, encoded as 128-char hex.
@@ -188,39 +143,6 @@ impl Omnib {
     )]
     pub fn from_key_hex(key_hex: &str) -> Result<Self, Error> {
         Self::from_hex_key(key_hex)
-    }
-
-    /// Create a new `Omnib` instance from a 86-character base64 key.
-    /// Strict base64 — rejects hex.
-    ///
-    /// Deprecated: oboron is moving to hex-only keys before v1.0.
-    /// Use [`Self::new`] (or [`Self::from_hex_key`]) instead.
-    #[cfg(feature = "base64-keys")]
-    #[deprecated(
-        since = "0.7.1",
-        note = "use Omnib::new() / from_hex_key() (hex) instead; base64 key support will be removed before oboron 1.0"
-    )]
-    pub fn from_base64_key(key_b64: &str) -> Result<Self, Error> {
-        Ok(Self {
-            #[allow(deprecated)]
-            masterkey: MasterKey::from_base64(key_b64)?,
-        })
-    }
-
-    /// Deprecated alias for [`Self::from_base64_key`].
-    ///
-    /// The 0.8.x name had the target/format order flipped relative
-    /// to the standard `from_<format>_<target>` pattern. Doubly
-    /// deprecated: base64 support itself is on the way out before
-    /// oboron 1.0.
-    #[cfg(feature = "base64-keys")]
-    #[deprecated(
-        since = "0.9.0",
-        note = "use Omnib::from_base64_key (or from_hex_key — base64 is going away)"
-    )]
-    pub fn from_key_base64(key_b64: &str) -> Result<Self, Error> {
-        #[allow(deprecated)]
-        Self::from_base64_key(key_b64)
     }
 
     /// Create a new `Omnib` instance from raw bytes.

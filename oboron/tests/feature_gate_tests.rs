@@ -11,20 +11,20 @@ mod bytes_keys {
     fn test_bytes_key_constructors() {
         let key = generate_key_bytes();
 
-        #[cfg(feature = "aasv")]
+        #[cfg(feature = "dsiv")]
         {
-            let _ = AasvC32::from_bytes(&key);
-            let _ = Ob::from_bytes("aasv.c32", &key);
+            let _ = DsivC32::from_bytes(&key);
+            let _ = Ob::from_bytes("dsiv.c32", &key);
             let _ = Omnib::from_bytes(&key);
         }
     }
 
     #[test]
     fn test_key_bytes_methods() {
-        #[cfg(feature = "aasv")]
+        #[cfg(feature = "dsiv")]
         {
             let key = generate_key();
-            let ob = AasvC32::new(&key).unwrap();
+            let ob = DsivC32::new(&key).unwrap();
 
             let _key_bytes: &[u8; 64] = ob.key_bytes();
         }
@@ -40,20 +40,20 @@ mod hex_keys {
         #[allow(deprecated)]
         let key = generate_key_hex();
 
-        #[cfg(feature = "aasv")]
+        #[cfg(feature = "dsiv")]
         {
-            let _ = AasvC32::from_hex_key(&key);
-            let _ = Ob::from_hex_key("aasv.c32", &key);
+            let _ = DsivC32::from_hex_key(&key);
+            let _ = Ob::from_hex_key("dsiv.c32", &key);
             let _ = Omnib::from_hex_key(&key);
         }
     }
 
     #[test]
     fn test_key_hex_methods() {
-        #[cfg(feature = "aasv")]
+        #[cfg(feature = "dsiv")]
         {
             let key = generate_key();
-            let ob = AasvC32::new(&key).unwrap();
+            let ob = DsivC32::new(&key).unwrap();
 
             let _key_hex = ob.key_hex();
         }
@@ -68,30 +68,29 @@ mod keyless_enabled {
     #[test]
     fn test_keyless_constructors() {
         // These should all compile with keyless feature
-        #[cfg(feature = "aasv")]
+        #[cfg(feature = "dsiv")]
         {
-            let _ = AasvC32::new_keyless();
-            let _ = Ob::new_keyless("aasv.c32");
+            let _ = DsivC32::new_keyless();
+            let _ = Ob::new_keyless("dsiv.c32");
             let _ = Omnib::new_keyless();
         }
     }
 
     #[test]
     fn test_keyless_convenience_functions() {
-        #[cfg(feature = "aasv")]
+        #[cfg(feature = "dsiv")]
         {
             // These should compile with keyless feature
-            let ot = enc_keyless("test", "aasv.c32").unwrap();
-            let _pt = dec_keyless(&ot, "aasv.c32").unwrap();
-            let _pt2 = autodec_keyless(&ot).unwrap();
+            let ot = enc_keyless("test", "dsiv.c32").unwrap();
+            let _pt = dec_keyless(&ot, "dsiv.c32").unwrap();
         }
     }
 
     #[test]
     fn test_keyless_roundtrip() {
-        #[cfg(feature = "aasv")]
+        #[cfg(feature = "dsiv")]
         {
-            let ob = AasvC32::new_keyless().unwrap();
+            let ob = DsivC32::new_keyless().unwrap();
             let plaintext = "hello keyless";
             let obtext = ob.enc(plaintext).unwrap();
             let recovered = ob.dec(&obtext).unwrap();
@@ -116,7 +115,7 @@ mod combined_features {
 
     #[test]
     fn test_all_key_formats_work_together() {
-        #[cfg(feature = "aasv")]
+        #[cfg(feature = "dsiv")]
         {
             #[allow(deprecated)]
             let key_hex = generate_key_hex();
@@ -124,9 +123,9 @@ mod combined_features {
             let key_str = generate_key();
 
             // All constructors should work
-            let ob1 = AasvC32::new(&key_str).unwrap();
-            let ob2 = AasvC32::from_hex_key(&key_hex).unwrap();
-            let ob3 = AasvC32::from_bytes(&key_bytes).unwrap();
+            let ob1 = DsivC32::new(&key_str).unwrap();
+            let ob2 = DsivC32::from_hex_key(&key_hex).unwrap();
+            let ob3 = DsivC32::from_bytes(&key_bytes).unwrap();
 
             // All key getters should work
             let _ = ob1.key();

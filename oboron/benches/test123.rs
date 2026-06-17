@@ -1,11 +1,9 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use oboron::Omnib;
-#[cfg(feature = "upbc")]
-use oboron::UpbcC32;
-#[cfg(feature = "aags")]
-use oboron::{AagsC32, ApgsC32};
-#[cfg(feature = "aasv")]
-use oboron::{AasvC32, ApsvC32};
+#[cfg(feature = "dgcmsiv")]
+use oboron::{DgcmsivC32, PgcmsivC32};
+#[cfg(feature = "dsiv")]
+use oboron::{DsivC32, PsivC32};
 #[cfg(feature = "mock")]
 use oboron::{Mock1C32, Mock2C32};
 
@@ -47,107 +45,81 @@ fn benchmark_mock2_dec(c: &mut Criterion) {
 
 // Crypto schemes
 
-#[cfg(feature = "aags")]
-fn benchmark_aags_enc(c: &mut Criterion) {
-    let ob = AagsC32::new_keyless().unwrap();
-    c.bench_function("test123/AagsC32/enc", |b| {
+#[cfg(feature = "dgcmsiv")]
+fn benchmark_dgcmsiv_enc(c: &mut Criterion) {
+    let ob = DgcmsivC32::new_keyless().unwrap();
+    c.bench_function("test123/DgcmsivC32/enc", |b| {
         b.iter(|| ob.enc(black_box("test123")).unwrap());
     });
 }
 
-#[cfg(feature = "aags")]
-fn benchmark_aags_dec(c: &mut Criterion) {
-    let ob = AagsC32::new_keyless().unwrap();
+#[cfg(feature = "dgcmsiv")]
+fn benchmark_dgcmsiv_dec(c: &mut Criterion) {
+    let ob = DgcmsivC32::new_keyless().unwrap();
     let ot = ob.enc("test123").unwrap();
-    c.bench_function("test123/AagsC32/dec", |b| {
+    c.bench_function("test123/DgcmsivC32/dec", |b| {
         b.iter(|| ob.dec(black_box(&ot)).unwrap());
     });
 }
 
-#[cfg(feature = "aasv")]
-fn benchmark_aasv_enc(c: &mut Criterion) {
-    let ob = AasvC32::new_keyless().unwrap();
-    c.bench_function("test123/AasvC32/enc", |b| {
+#[cfg(feature = "dsiv")]
+fn benchmark_dsiv_enc(c: &mut Criterion) {
+    let ob = DsivC32::new_keyless().unwrap();
+    c.bench_function("test123/DsivC32/enc", |b| {
         b.iter(|| ob.enc(black_box("test123")).unwrap());
     });
 }
 
-#[cfg(feature = "aasv")]
-fn benchmark_aasv_dec(c: &mut Criterion) {
-    let ob = AasvC32::new_keyless().unwrap();
-    let ot = ob.enc("test123/AasvC32/dec").unwrap();
-    c.bench_function("dec_aasv", |b| {
+#[cfg(feature = "dsiv")]
+fn benchmark_dsiv_dec(c: &mut Criterion) {
+    let ob = DsivC32::new_keyless().unwrap();
+    let ot = ob.enc("test123/DsivC32/dec").unwrap();
+    c.bench_function("dec_dsiv", |b| {
         b.iter(|| ob.dec(black_box(&ot)).unwrap());
     });
 }
 
-#[cfg(feature = "apgs")]
-fn benchmark_apgs_enc(c: &mut Criterion) {
-    let ob = ApgsC32::new_keyless().unwrap();
-    c.bench_function("test123/ApgsC32/enc", |b| {
+#[cfg(feature = "pgcmsiv")]
+fn benchmark_pgcmsiv_enc(c: &mut Criterion) {
+    let ob = PgcmsivC32::new_keyless().unwrap();
+    c.bench_function("test123/PgcmsivC32/enc", |b| {
         b.iter(|| ob.enc(black_box("test123")).unwrap());
     });
 }
 
-#[cfg(feature = "apgs")]
-fn benchmark_apgs_dec(c: &mut Criterion) {
-    let ob = ApgsC32::new_keyless().unwrap();
+#[cfg(feature = "pgcmsiv")]
+fn benchmark_pgcmsiv_dec(c: &mut Criterion) {
+    let ob = PgcmsivC32::new_keyless().unwrap();
     let ot = ob.enc("test123").unwrap();
-    c.bench_function("test123/ApgsC32/dec", |b| {
+    c.bench_function("test123/PgcmsivC32/dec", |b| {
         b.iter(|| ob.dec(black_box(&ot)).unwrap());
     });
 }
 
-#[cfg(feature = "apsv")]
-fn benchmark_apsv_enc(c: &mut Criterion) {
-    let ob = ApsvC32::new_keyless().unwrap();
-    c.bench_function("test123/ApsvC32/enc", |b| {
+#[cfg(feature = "psiv")]
+fn benchmark_psiv_enc(c: &mut Criterion) {
+    let ob = PsivC32::new_keyless().unwrap();
+    c.bench_function("test123/PsivC32/enc", |b| {
         b.iter(|| ob.enc(black_box("test123")).unwrap());
     });
 }
 
-#[cfg(feature = "apsv")]
-fn benchmark_apsv_dec(c: &mut Criterion) {
-    let ob = ApsvC32::new_keyless().unwrap();
+#[cfg(feature = "psiv")]
+fn benchmark_psiv_dec(c: &mut Criterion) {
+    let ob = PsivC32::new_keyless().unwrap();
     let ot = ob.enc("test123").unwrap();
-    c.bench_function("test123/ApsvC32/dec", |b| {
-        b.iter(|| ob.dec(black_box(&ot)).unwrap());
-    });
-}
-
-#[cfg(feature = "upbc")]
-fn benchmark_upbc_enc(c: &mut Criterion) {
-    let ob = UpbcC32::new_keyless().unwrap();
-    c.bench_function("test123/UpbcC32/enc", |b| {
-        b.iter(|| ob.enc(black_box("test123")).unwrap());
-    });
-}
-
-#[cfg(feature = "upbc")]
-fn benchmark_upbc_dec(c: &mut Criterion) {
-    let ob = UpbcC32::new_keyless().unwrap();
-    let ot = ob.enc("test123").unwrap();
-    c.bench_function("test123/UpbcC32/dec", |b| {
+    c.bench_function("test123/PsivC32/dec", |b| {
         b.iter(|| ob.dec(black_box(&ot)).unwrap());
     });
 }
 
 // Omnib
 
-#[cfg(feature = "aasv")]
-fn benchmark_aasv_omb_enc(c: &mut Criterion) {
+#[cfg(feature = "dsiv")]
+fn benchmark_dsiv_omb_enc(c: &mut Criterion) {
     let ob = Omnib::new_keyless().unwrap();
-    c.bench_function("test123/Omnib_aasv.c32/enc", |b| {
-        b.iter(|| ob.enc(black_box("test123"), "aasv.c32").unwrap());
-    });
-}
-
-#[cfg(feature = "aasv")]
-fn benchmark_aasv_omb_autodec(c: &mut Criterion) {
-    let ob = Omnib::new_keyless().unwrap();
-    let ot = ob.enc("test123", "aasv.c32").unwrap();
-    c.bench_function("test123/Omnib_aasv.c32/autodec", |b| {
-        b.iter(|| ob.autodec(black_box(&ot)).unwrap());
+    c.bench_function("test123/Omnib_dsiv.c32/enc", |b| {
+        b.iter(|| ob.enc(black_box("test123"), "dsiv.c32").unwrap());
     });
 }
 
@@ -159,18 +131,15 @@ criterion_group!(
     benchmark_mock2_enc,
     benchmark_mock2_dec,
     // Crypto
-    benchmark_aags_enc,
-    benchmark_aags_dec,
-    benchmark_aasv_enc,
-    benchmark_aasv_dec,
-    benchmark_apgs_enc,
-    benchmark_apgs_dec,
-    benchmark_apsv_enc,
-    benchmark_apsv_dec,
-    benchmark_upbc_enc,
-    benchmark_upbc_dec,
+    benchmark_dgcmsiv_enc,
+    benchmark_dgcmsiv_dec,
+    benchmark_dsiv_enc,
+    benchmark_dsiv_dec,
+    benchmark_pgcmsiv_enc,
+    benchmark_pgcmsiv_dec,
+    benchmark_psiv_enc,
+    benchmark_psiv_dec,
     // Omnib
-    benchmark_aasv_omb_enc,
-    benchmark_aasv_omb_autodec,
+    benchmark_dsiv_omb_enc,
 );
 criterion_main!(benches);

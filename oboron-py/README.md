@@ -8,9 +8,9 @@
 Python bindings for [`oboron`][oboron-rs] — a *string-in,
 string-out* symmetric encryption and encoding library. One call
 takes plaintext to **obtext** (encrypted + encoded), one call
-brings it back. Multiple AES-based schemes (deterministic and
-probabilistic, authenticated and unauthenticated) share a single
-key and a uniform API.
+brings it back. Multiple authenticated AES-based schemes
+(deterministic and probabilistic) share a single key and a
+uniform API.
 
 [oboron-rs]: https://gitlab.com/oboron/oboron-rs
 [oboron]: https://oboron.org/
@@ -18,7 +18,7 @@ key and a uniform API.
 
 For the bytes-in/bytes-out cryptographic core (no encoding, no
 UTF-8 validation), see [`obcrypt-py`][obcrypt-py]. oboron-py
-layers encoding, format strings, and autodetection on top.
+layers encoding and format strings on top.
 
 ## Install
 
@@ -50,10 +50,6 @@ property and `generate_key_bytes()` for interop with byte-native
 APIs (HSMs, `cryptography`, `pynacl`, custom storage), but hex
 is the canonical input everywhere.
 
-The legacy 86-character base64 form is still accepted for
-backward compatibility, but is deprecated and will be removed
-when the oboron core ships 1.0. New code should use hex.
-
 ## Quick start
 
 ### Fixed-format codec (most common)
@@ -62,23 +58,23 @@ when the oboron core ships 1.0. New code should use hex.
 import oboron
 
 key = oboron.generate_key()
-ob = oboron.AasvC32(key)
+ob = oboron.DsivC32(key)
 
 obtext = ob.enc("hello, world")
 plaintext = ob.dec(obtext)
 assert plaintext == "hello, world"
 ```
 
-`AasvC32` binds a key + the `aasv.c32` format together — most
+`DsivC32` binds a key + the `dsiv.c32` format together — most
 ergonomic when one codec handles many messages of the same
 format. Available classes follow the `{Scheme}{Encoding}`
-pattern: `AagsB64`, `AasvHex`, `ApsvC32`, `UpbcB32`, etc.
+pattern: `DgcmsivB64`, `DsivHex`, `PsivC32`, `PgcmsivB32`, etc.
 
 Or, from an env var:
 
 ```python
 import os, oboron
-ob = oboron.AasvC32(os.environ["OBORON_KEY"])
+ob = oboron.DsivC32(os.environ["OBORON_KEY"])
 ```
 
 ### Runtime-flexible (`Ob`)
@@ -88,32 +84,27 @@ When the format is chosen at runtime (config, user input), use
 `set_encoding` mutate the format in place.
 
 ```python
-ob = oboron.Ob("aasv.b64", key)
+ob = oboron.Ob("dsiv.b64", key)
 obtext = ob.enc("hello")
 
-ob.set_encoding("c32")     # now aasv.c32
-ob.set_scheme("aags")      # now aags.c32
-ob.set_format("upbc.hex")  # now upbc.hex
+ob.set_encoding("c32")        # now dsiv.c32
+ob.set_scheme("dgcmsiv")      # now dgcmsiv.c32
+ob.set_format("psiv.hex")     # now psiv.hex
 ```
 
 ### Multi-format (`Omnib`)
 
-`Omnib` doesn't store a format — pass one per call, and
-`autodec` detects both scheme and encoding from the obtext.
+`Omnib` doesn't store a format — pass one per call.
 
 ```python
 omb = oboron.Omnib(key)
 
-ot_aasv = omb.enc("hello", "aasv.b64")
-ot_aags = omb.enc("hello", "aags.c32")
+ot_dsiv = omb.enc("hello", "dsiv.b64")
+ot_dgcmsiv = omb.enc("hello", "dgcmsiv.c32")
 
-assert omb.autodec(ot_aasv) == "hello"   # detects aasv + b64
-assert omb.autodec(ot_aags) == "hello"   # detects aags + c32
+assert omb.dec(ot_dsiv, "dsiv.b64") == "hello"
+assert omb.dec(ot_dgcmsiv, "dgcmsiv.c32") == "hello"
 ```
-
-Autodetection retries across encodings; expect ~3x worst-case
-overhead vs known-format `dec`, though the heuristic encoding
-detector keeps the average much closer to single-`dec` cost.
 
 ### Free functions
 
@@ -125,45 +116,25 @@ from oboron import formats
 
 key = oboron.generate_key()
 
-obtext = oboron.enc("hello", formats.AASV_B64, key)
-plaintext = oboron.dec(obtext, formats.AASV_B64, key)
-plaintext_auto = oboron.autodec(obtext, key)
+obtext = oboron.enc("hello", formats.DSIV_B64, key)
+plaintext = oboron.dec(obtext, formats.DSIV_B64, key)
 ```
 
 ## Schemes
 
-| Name    | Tier   | Determinism   | Algorithm      | Use case                                   |
-| ------- | ------ | ------------- | -------------- | ------------------------------------------ |
-| `aags`  | a      | deterministic | AES-GCM-SIV    | Auth + compact + deterministic             |
-| `apgs`  | a      | probabilistic | AES-GCM-SIV    | Auth + max privacy                         |
-| `aasv`  | a      | deterministic | AES-SIV        | General-purpose auth, nonce-misuse safe    |
-| `apsv`  | a      | probabilistic | AES-SIV        | Auth + max privacy + nonce-misuse safe     |
-| `upbc`  | u      | probabilistic | AES-CBC        | Confidentiality only (auth handled extern) |
-| `zrbcx` | z      | deterministic | AES-CBC, fixed | **Obfuscation only — NOT SECURE**          |
+| Name      | Determinism   | Algorithm   | Use case                                |
+| --------- | ------------- | ----------- | --------------------------------------- |
+| `dgcmsiv` | deterministic | AES-GCM-SIV | Auth + compact + deterministic          |
+| `pgcmsiv` | probabilistic | AES-GCM-SIV | Auth + max privacy                      |
+| `dsiv`    | deterministic | AES-SIV     | General-purpose auth, nonce-misuse safe |
+| `psiv`    | probabilistic | AES-SIV     | Auth + max privacy + nonce-misuse safe  |
 
-Tier letters: **a** = authenticated, **u** = unauthenticated
-but real cryptography, **z** = obfuscation only (no
-cryptographic security). For new security-sensitive work, pick
-an a-tier scheme; `aasv` is a strong default.
+Every oboron scheme is authenticated. For new
+security-sensitive work, `dsiv` is a strong default.
 
-The z-tier (`zrbcx`, `legacy`) lives under `oboron.ztier` and
-uses a 32-byte **secret** instead of a 64-byte master key:
-
-```python
-import oboron
-from oboron.ztier import ZrbcxC32
-
-secret = oboron.generate_secret()   # 64-char hex
-z = ZrbcxC32(secret)
-obtext = z.enc("hello")             # 'c38jrtewavbm9609ga970bjxx5k42'
-```
-
-For obfuscation contexts where everyone is allowed to decrypt
-(IDs, captcha challenges, URL slugs), use `keyless=True`:
-
-```python
-z = ZrbcxC32(keyless=True)
-```
+The unauthenticated (`upcbc`) and obfuscation (`zdcbc`) layers
+live in the separate [`obu`](https://gitlab.com/oboron/obu-rs)
+crate, not these bindings.
 
 ## Encodings
 
@@ -174,35 +145,34 @@ z = ZrbcxC32(keyless=True)
 | `b64`    | RFC 4648 URL-safe base64               | Most compact                   |
 | `hex`    | Hexadecimal                            | Longest output, fastest decode |
 
-Format = `scheme.encoding`, e.g. `aasv.c32`, `aags.b64`,
-`upbc.hex`. The `oboron.formats` module exposes every valid
-combination as a constant: `formats.AASV_C32`, `formats.AAGS_B64`,
-etc. — useful for typo-resistance and editor autocomplete.
+Format = `scheme.encoding`, e.g. `dsiv.c32`, `dgcmsiv.b64`,
+`psiv.hex`. The `oboron.formats` module exposes every valid
+combination as a constant: `formats.DSIV_C32`,
+`formats.DGCMSIV_B64`, etc. — useful for typo-resistance and
+editor autocomplete.
 
 ## Exceptions
 
 All errors inherit from `oboron.OboronError`:
 
-- `InvalidKey` — bad hex / base64 / wrong-length key
+- `InvalidKey` — bad hex / wrong-length key
 - `InvalidFormat` — unknown scheme, unknown encoding, malformed
   format string
 - `EncryptionFailed` — AEAD failure / empty plaintext
-- `DecryptionFailed` — tag check, padding, obtext-decode
-  failure, post-decrypt UTF-8 validation
+- `DecryptionFailed` — tag check, obtext-decode failure,
+  post-decrypt UTF-8 validation
 
 ```python
 try:
-    ob = oboron.AasvC32("not-a-real-key")
+    ob = oboron.DsivC32("not-a-real-key")
 except oboron.InvalidKey as e:
     ...
 ```
 
 ## Inheritance / isinstance
 
-All a/u-tier codec classes plus `Ob` are registered as virtual
-subclasses of `oboron.OboronBase`; z-tier codecs (`ZrbcxC32`,
-`Legacy`, etc.) plus `Obz` register against
-`oboron.ztier.ZtierBase`. Useful for generic code:
+All codec classes plus `Ob` are registered as virtual
+subclasses of `oboron.OboronBase`. Useful for generic code:
 
 ```python
 def encrypt_each(cipher: oboron.OboronBase, items: list[str]) -> list[str]:
@@ -218,7 +188,7 @@ recoverable without secret material. **Never use `keyless=True`
 when confidentiality matters.**
 
 ```python
-ob = oboron.AagsB64(keyless=True)
+ob = oboron.DgcmsivB64(keyless=True)
 ```
 
 ## Development build
@@ -232,5 +202,19 @@ python -m oboron.test_inheritance
 
 ## License
 
-MIT — see
-[LICENSE](https://gitlab.com/oboron/oboron-rs/-/blob/master/oboron-py/LICENSE).
+Licensed under either of
+
+- Apache License, Version 2.0
+  ([LICENSE-APACHE](LICENSE-APACHE) or
+  <https://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or
+  <https://opensource.org/licenses/MIT>)
+
+at your option.
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution
+intentionally submitted for inclusion in the work by you, as
+defined in the Apache-2.0 license, shall be dual licensed as
+above, without any additional terms or conditions.

@@ -8,50 +8,49 @@ Docs: https://oboron.org/
 Keys are 128-character hex strings — the canonical oboron key form,
 what comes out of env vars, config files, and secrets managers. Every
 codec constructor and free function takes the key as a plain ``str``.
-A transitional 86-character base64 form is still accepted while the
-`base64-keys` gate stays on in the core; it will be removed when the
-core ships 1.0.
 
 Quick start::
 
     import oboron
 
     key = oboron.generate_key()              # 128-char hex
-    ob = oboron.AasvC32(key)
+    ob = oboron.DsivC32(key)
     obtext = ob.enc("hello, world")
     plaintext = ob.dec(obtext)
     assert plaintext == "hello, world"
 
 Runtime-flexible style (`Ob`, format mutable after construction)::
 
-    ob = oboron.Ob("aasv.b64", key)
+    ob = oboron.Ob("dsiv.b64", key)
     obtext = ob.enc("hello")
-    ob.set_format("aags.c32")
+    ob.set_format("dgcmsiv.c32")
     obtext2 = ob.enc("hello")
 
-Multi-format style (`Omnib`, format per call, autodetect on decode)::
+Multi-format style (`Omnib`, format supplied per call)::
 
     omb = oboron.Omnib(key)
-    obtext = omb.enc("hello", "aasv.b64")
-    plaintext = omb.autodec(obtext)          # detects scheme + encoding
+    obtext = omb.enc("hello", "dsiv.b64")
+    plaintext = omb.dec(obtext, "dsiv.b64")  # scheme supplied, not detected
 
 Schemes:
 
-- ``aags`` — a-tier, deterministic, AES-GCM-SIV
-- ``apgs`` — a-tier, probabilistic, AES-GCM-SIV
-- ``aasv`` — a-tier, deterministic, AES-SIV (most general default)
-- ``apsv`` — a-tier, probabilistic, AES-SIV
-- ``upbc`` — u-tier (unauthenticated), probabilistic, AES-CBC
-- ``zrbcx`` — z-tier (insecure, obfuscation only), deterministic AES-CBC
+- ``dgcmsiv`` — deterministic, AES-GCM-SIV
+- ``pgcmsiv`` — probabilistic, AES-GCM-SIV
+- ``dsiv`` — deterministic, AES-SIV (most general default)
+- ``psiv`` — probabilistic, AES-SIV
+
+All four are authenticated. The unauthenticated / obfuscation
+schemes are not part of oboron — they live in the separate ``obu``
+package.
 
 Encodings: ``b32`` (RFC 4648 base32), ``b64`` (URL-safe base64),
 ``c32`` (Crockford base32), ``hex``. Concatenated as ``scheme.encoding``,
-e.g. ``aasv.c32``.
+e.g. ``dsiv.c32``.
 
 Exception hierarchy:
 
 - ``OboronError`` — base class for all oboron exceptions
-  - ``InvalidKey`` — bad hex / base64 / wrong length
+  - ``InvalidKey`` — bad hex key / wrong length
   - ``InvalidFormat`` — unknown scheme / encoding / malformed format
   - ``EncryptionFailed`` — AEAD failure / empty plaintext
   - ``DecryptionFailed`` — tag / padding / obtext-decode / UTF-8
@@ -72,7 +71,7 @@ __version__ = _oboron.__version__
 
 
 class ObtextCodec(Protocol):
-    """Structural protocol every codec satisfies (a/u-tier)."""
+    """Structural protocol every codec satisfies."""
 
     def enc(self, plaintext: str) -> str: ...
     def dec(self, obtext: str) -> str: ...
@@ -85,15 +84,15 @@ class ObtextCodec(Protocol):
 
 
 class OboronBase(ABC):
-    """Abstract base class for all a/u-tier codec implementations.
+    """Abstract base class for all oboron codec implementations.
 
-    All a/u-tier codec classes (``AasvB32``, ``AasvC32``, etc.) plus
-    ``Ob`` are registered as virtual subclasses, enabling
-    ``isinstance()`` / ``issubclass()`` checks.
+    All codec classes (``DsivB32``, ``DsivC32``, etc.) plus ``Ob`` are
+    registered as virtual subclasses, enabling ``isinstance()`` /
+    ``issubclass()`` checks.
 
     Example::
 
-        cipher = AasvC32(key=key)
+        cipher = DsivC32(key=key)
         assert isinstance(cipher, OboronBase)
 
         def process(cipher: OboronBase) -> str:
@@ -150,11 +149,10 @@ def _register_if_present(*names: str) -> None:
 
 
 _register_if_present(
-    "AagsC32", "AagsB32", "AagsB64", "AagsHex",
-    "AasvC32", "AasvB32", "AasvB64", "AasvHex",
-    "ApgsC32", "ApgsB32", "ApgsB64", "ApgsHex",
-    "ApsvC32", "ApsvB32", "ApsvB64", "ApsvHex",
-    "UpbcC32", "UpbcB32", "UpbcB64", "UpbcHex",
+    "DgcmsivC32", "DgcmsivB32", "DgcmsivB64", "DgcmsivHex",
+    "DsivC32", "DsivB32", "DsivB64", "DsivHex",
+    "PgcmsivC32", "PgcmsivB32", "PgcmsivB64", "PgcmsivHex",
+    "PsivC32", "PsivB32", "PsivB64", "PsivHex",
     "Mock1C32", "Mock1B32", "Mock1B64", "Mock1Hex",
     "Mock2C32", "Mock2B32", "Mock2B64", "Mock2Hex",
     "Ob",
@@ -169,35 +167,29 @@ _register_if_present(
 Ob = _oboron.Ob
 Omnib = _oboron.Omnib
 
-# Aags
-AagsC32 = _oboron.AagsC32
-AagsB32 = _oboron.AagsB32
-AagsB64 = _oboron.AagsB64
-AagsHex = _oboron.AagsHex
+# Dgcmsiv
+DgcmsivC32 = _oboron.DgcmsivC32
+DgcmsivB32 = _oboron.DgcmsivB32
+DgcmsivB64 = _oboron.DgcmsivB64
+DgcmsivHex = _oboron.DgcmsivHex
 
-# Aasv
-AasvC32 = _oboron.AasvC32
-AasvB32 = _oboron.AasvB32
-AasvB64 = _oboron.AasvB64
-AasvHex = _oboron.AasvHex
+# Dsiv
+DsivC32 = _oboron.DsivC32
+DsivB32 = _oboron.DsivB32
+DsivB64 = _oboron.DsivB64
+DsivHex = _oboron.DsivHex
 
-# Apgs
-ApgsC32 = _oboron.ApgsC32
-ApgsB32 = _oboron.ApgsB32
-ApgsB64 = _oboron.ApgsB64
-ApgsHex = _oboron.ApgsHex
+# Pgcmsiv
+PgcmsivC32 = _oboron.PgcmsivC32
+PgcmsivB32 = _oboron.PgcmsivB32
+PgcmsivB64 = _oboron.PgcmsivB64
+PgcmsivHex = _oboron.PgcmsivHex
 
-# Apsv
-ApsvC32 = _oboron.ApsvC32
-ApsvB32 = _oboron.ApsvB32
-ApsvB64 = _oboron.ApsvB64
-ApsvHex = _oboron.ApsvHex
-
-# Upbc
-UpbcC32 = _oboron.UpbcC32
-UpbcB32 = _oboron.UpbcB32
-UpbcB64 = _oboron.UpbcB64
-UpbcHex = _oboron.UpbcHex
+# Psiv
+PsivC32 = _oboron.PsivC32
+PsivB32 = _oboron.PsivB32
+PsivB64 = _oboron.PsivB64
+PsivHex = _oboron.PsivHex
 
 # Mock1 / Mock2 (testing)
 Mock1C32 = _oboron.Mock1C32
@@ -212,16 +204,12 @@ Mock2Hex = _oboron.Mock2Hex
 # Utility functions
 generate_key = _oboron.generate_key
 generate_key_bytes = _oboron.generate_key_bytes
-generate_secret = _oboron.generate_secret
-generate_secret_bytes = _oboron.generate_secret_bytes
 
 # Convenience functions
 enc = _oboron.enc
 dec = _oboron.dec
-autodec = _oboron.autodec
 enc_keyless = _oboron.enc_keyless
 dec_keyless = _oboron.dec_keyless
-autodec_keyless = _oboron.autodec_keyless
 
 # Exceptions
 OboronError = _oboron.OboronError
@@ -239,33 +227,27 @@ __all__ = [
     # Flexible interfaces
     "Ob",
     "Omnib",
-    # Aags
-    "AagsC32", "AagsB32", "AagsB64", "AagsHex",
-    # Aasv
-    "AasvC32", "AasvB32", "AasvB64", "AasvHex",
-    # Apgs
-    "ApgsC32", "ApgsB32", "ApgsB64", "ApgsHex",
-    # Apsv
-    "ApsvC32", "ApsvB32", "ApsvB64", "ApsvHex",
-    # Upbc
-    "UpbcC32", "UpbcB32", "UpbcB64", "UpbcHex",
+    # Dgcmsiv
+    "DgcmsivC32", "DgcmsivB32", "DgcmsivB64", "DgcmsivHex",
+    # Dsiv
+    "DsivC32", "DsivB32", "DsivB64", "DsivHex",
+    # Pgcmsiv
+    "PgcmsivC32", "PgcmsivB32", "PgcmsivB64", "PgcmsivHex",
+    # Psiv
+    "PsivC32", "PsivB32", "PsivB64", "PsivHex",
     # Mock (testing)
     "Mock1C32", "Mock1B32", "Mock1B64", "Mock1Hex",
     "Mock2C32", "Mock2B32", "Mock2B64", "Mock2Hex",
     # Format constants module
     "formats",
-    # Key / secret generation
+    # Key generation
     "generate_key",
     "generate_key_bytes",
-    "generate_secret",
-    "generate_secret_bytes",
     # Convenience functions
     "enc",
     "dec",
-    "autodec",
     "enc_keyless",
     "dec_keyless",
-    "autodec_keyless",
     # Exceptions
     "OboronError",
     "InvalidKey",
