@@ -5,14 +5,13 @@
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 [![oboron crate](https://img.shields.io/crates/v/oboron?label=oboron)](https://crates.io/crates/oboron)
 
-Python bindings for [`oboron`][oboron-rs] — a *string-in,
+Python bindings for [`oboron`][oboron] — a *string-in,
 string-out* symmetric encryption and encoding library. One call
 takes plaintext to **obtext** (encrypted + encoded), one call
 brings it back. Multiple authenticated AES-based schemes
 (deterministic and probabilistic) share a single key and a
 uniform API.
 
-[oboron-rs]: https://gitlab.com/oboron/oboron-rs
 [oboron]: https://oboron.org/
 [obcrypt-py]: https://pypi.org/project/obcrypt/
 
@@ -124,13 +123,16 @@ plaintext = oboron.dec(obtext, formats.DSIV_B64, key)
 
 | Name      | Determinism   | Algorithm   | Use case                                |
 | --------- | ------------- | ----------- | --------------------------------------- |
-| `dgcmsiv` | deterministic | AES-GCM-SIV | Auth + compact + deterministic          |
-| `pgcmsiv` | probabilistic | AES-GCM-SIV | Auth + max privacy                      |
 | `dsiv`    | deterministic | AES-SIV     | General-purpose auth, nonce-misuse safe |
 | `psiv`    | probabilistic | AES-SIV     | Auth + max privacy + nonce-misuse safe  |
+| `dgcmsiv` | deterministic | AES-GCM-SIV | Auth + compact + deterministic          |
+| `pgcmsiv` | probabilistic | AES-GCM-SIV | Auth + max privacy                      |
 
-Every oboron scheme is authenticated. For new
-security-sensitive work, `dsiv` is a strong default.
+Every oboron scheme is authenticated. In general,
+AES-SIV and AES-GCM-SIV have similar properties, with
+AES-SIV being typically more performant on short inputs,
+while AES-GCM-SIV scales better with input size, and
+outperforms AES-SIV on long inputs.
 
 The unauthenticated (`upcbc`) and obfuscation (`zdcbc`) layers
 live in the separate [`obu`](https://gitlab.com/oboron/obu-rs)
@@ -138,12 +140,12 @@ crate, not these bindings.
 
 ## Encodings
 
-| Encoding | Description                            | Notes                          |
-| -------- | -------------------------------------- | ------------------------------ |
-| `b32`    | RFC 4648 base32                        | Uppercase, no obscenity rules  |
-| `c32`    | Crockford base32                       | Lowercase, obscenity-aware     |
-| `b64`    | RFC 4648 URL-safe base64               | Most compact                   |
-| `hex`    | Hexadecimal                            | Longest output, fastest decode |
+| Encoding | Description                            | Notes                                   |
+| -------- | -------------------------------------- | --------------------------------------- |
+| `b32`    | RFC 4648 base32                        | Uppercase                               |
+| `c32`    | Crockford base32                       | Lowercase (obscenity safe)              |
+| `b64`    | RFC 4648 URL-safe base64               | Most compact                            |
+| `hex`    | Hexadecimal                            | Longest output (slightly faster decode) |
 
 Format = `scheme.encoding`, e.g. `dsiv.c32`, `dgcmsiv.b64`,
 `psiv.hex`. The `oboron.formats` module exposes every valid

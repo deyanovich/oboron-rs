@@ -7,6 +7,18 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 
+## [1.0.2] - 2026-06-29
+
+### Fixed
+
+- Added the **`py.typed`** marker (PEP 561). The bundled `_oboron.pyi`
+  type stubs were present and the `Typing :: Typed` classifier was
+  set, but without the marker type checkers (mypy, pyright) ignored
+  the stubs and treated the package as untyped. The stubs are now
+  actually honored by downstream type checking. Packaging-only change
+  — no API or behavior difference.
+
+
 ## [1.0.1] - 2026-06-28
 
 Tracks oboron core **1.0.1** — a documentation / metadata / hygiene
