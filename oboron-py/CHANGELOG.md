@@ -7,6 +7,39 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 
+## [1.0.1] - 2026-06-28
+
+Tracks oboron core **1.0.1** — a documentation / metadata / hygiene
+cleanup with no API or wire-format change. Binding-side fixes:
+
+### Documentation
+
+- Replaced the MIT-only README license badge with a dual
+  `MIT OR Apache-2.0` badge linking the in-README license section
+  (the old badge pointed at a nonexistent `LICENSE` file).
+- The PyPI package summary now reads "authenticated symmetric
+  encryption", matching the crate description.
+
+
+## [1.0.0] - 2026-06-28
+
+First stable release, tracking oboron core **1.0.0**
+(authenticated-only, protocol spec 1.0).
+
+### Changed
+
+- Depend on the published **oboron / obcrypt 1.0.0** (was the
+  `1.0.0-rc1` prerelease).
+- Declare the real dual license (`MIT OR Apache-2.0`) in the package
+  metadata.
+
+### Removed
+
+- The no-encryption `mock` codecs are no longer in the default
+  feature set, so they are not shipped in the published wheel (still
+  available behind `--features mock` for tests).
+
+
 ## [1.0.0-rc1] - 2026-06-16
 
 Catches the Python bindings up to oboron core 1.0.0-rc1

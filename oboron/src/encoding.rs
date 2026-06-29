@@ -44,6 +44,12 @@ impl Encoding {
 impl std::str::FromStr for Encoding {
     type Err = Error;
 
+    /// Parse an encoding from its identifier.
+    ///
+    /// Accepts the short tokens (`b32`, `c32`, `b64`, `hex`) and the
+    /// long aliases (`base32crockford`, `base32rfc`, `base64`),
+    /// case-insensitively — a deliberate ergonomics choice, more
+    /// lenient than the case-sensitive tokens of spec §1.1.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "b32" => Ok(Encoding::B32),

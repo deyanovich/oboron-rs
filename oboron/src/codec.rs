@@ -37,6 +37,7 @@ pub trait ObtextCodec {
 /// - Direct function calls to encrypt/decrypt
 /// - Encoding functions called directly (no dispatch)
 /// - All constants baked in at compile time
+#[allow(unused_macros)]
 macro_rules! impl_codec_32 {
     (
         $name: ident,
@@ -206,6 +207,7 @@ macro_rules! impl_codec_32 {
 
 /// Macro for the AES-SIV schemes (dsiv, psiv). The full 64-byte master
 /// key is used directly as the AES-SIV key (no derivation).
+#[allow(unused_macros)]
 macro_rules! impl_codec_64 {
     (
         $name:ident,
@@ -571,7 +573,6 @@ impl_codec_64!(
     psiv
 );
 
-
 // mock1 variants (32-byte key)
 #[cfg(feature = "mock")]
 impl_codec_32!(
@@ -927,13 +928,13 @@ impl ObAny {
     }
 }
 
-/// Create an encoder from a format string and base64 key.
+/// Create an encoder from a format string and a 128-character hex key.
 pub fn new(fmt: &str, key: &str) -> Result<ObAny, Error> {
     let format = Format::from_str(fmt)?;
     new_with_format(format, key)
 }
 
-/// Create an encoder from a pre-parsed Format and base64 key.
+/// Create an encoder from a pre-parsed Format and a 128-character hex key.
 pub fn new_with_format(format: Format, key: &str) -> Result<ObAny, Error> {
     match (format.scheme(), format.encoding()) {
         #[cfg(feature = "dgcmsiv")]
@@ -993,37 +994,37 @@ pub fn new_with_format(format: Format, key: &str) -> Result<ObAny, Error> {
 fn from_bytes_with_format_internal(format: Format, key_bytes: &[u8; 64]) -> Result<ObAny, Error> {
     match (format.scheme(), format.encoding()) {
         #[cfg(feature = "dgcmsiv")]
-        (Scheme::Dgcmsiv, Encoding::C32) => {
-            Ok(ObAny::DgcmsivC32(DgcmsivC32::from_bytes_internal(key_bytes)?))
-        }
+        (Scheme::Dgcmsiv, Encoding::C32) => Ok(ObAny::DgcmsivC32(DgcmsivC32::from_bytes_internal(
+            key_bytes,
+        )?)),
         #[cfg(feature = "dgcmsiv")]
-        (Scheme::Dgcmsiv, Encoding::B32) => {
-            Ok(ObAny::DgcmsivB32(DgcmsivB32::from_bytes_internal(key_bytes)?))
-        }
+        (Scheme::Dgcmsiv, Encoding::B32) => Ok(ObAny::DgcmsivB32(DgcmsivB32::from_bytes_internal(
+            key_bytes,
+        )?)),
         #[cfg(feature = "dgcmsiv")]
-        (Scheme::Dgcmsiv, Encoding::B64) => {
-            Ok(ObAny::DgcmsivB64(DgcmsivB64::from_bytes_internal(key_bytes)?))
-        }
+        (Scheme::Dgcmsiv, Encoding::B64) => Ok(ObAny::DgcmsivB64(DgcmsivB64::from_bytes_internal(
+            key_bytes,
+        )?)),
         #[cfg(feature = "dgcmsiv")]
-        (Scheme::Dgcmsiv, Encoding::Hex) => {
-            Ok(ObAny::DgcmsivHex(DgcmsivHex::from_bytes_internal(key_bytes)?))
-        }
+        (Scheme::Dgcmsiv, Encoding::Hex) => Ok(ObAny::DgcmsivHex(DgcmsivHex::from_bytes_internal(
+            key_bytes,
+        )?)),
         #[cfg(feature = "pgcmsiv")]
-        (Scheme::Pgcmsiv, Encoding::C32) => {
-            Ok(ObAny::PgcmsivC32(PgcmsivC32::from_bytes_internal(key_bytes)?))
-        }
+        (Scheme::Pgcmsiv, Encoding::C32) => Ok(ObAny::PgcmsivC32(PgcmsivC32::from_bytes_internal(
+            key_bytes,
+        )?)),
         #[cfg(feature = "pgcmsiv")]
-        (Scheme::Pgcmsiv, Encoding::B32) => {
-            Ok(ObAny::PgcmsivB32(PgcmsivB32::from_bytes_internal(key_bytes)?))
-        }
+        (Scheme::Pgcmsiv, Encoding::B32) => Ok(ObAny::PgcmsivB32(PgcmsivB32::from_bytes_internal(
+            key_bytes,
+        )?)),
         #[cfg(feature = "pgcmsiv")]
-        (Scheme::Pgcmsiv, Encoding::B64) => {
-            Ok(ObAny::PgcmsivB64(PgcmsivB64::from_bytes_internal(key_bytes)?))
-        }
+        (Scheme::Pgcmsiv, Encoding::B64) => Ok(ObAny::PgcmsivB64(PgcmsivB64::from_bytes_internal(
+            key_bytes,
+        )?)),
         #[cfg(feature = "pgcmsiv")]
-        (Scheme::Pgcmsiv, Encoding::Hex) => {
-            Ok(ObAny::PgcmsivHex(PgcmsivHex::from_bytes_internal(key_bytes)?))
-        }
+        (Scheme::Pgcmsiv, Encoding::Hex) => Ok(ObAny::PgcmsivHex(PgcmsivHex::from_bytes_internal(
+            key_bytes,
+        )?)),
         #[cfg(feature = "dsiv")]
         (Scheme::Dsiv, Encoding::C32) => {
             Ok(ObAny::DsivC32(DsivC32::from_bytes_internal(key_bytes)?))

@@ -42,7 +42,10 @@ fn load_benchmark_specs() -> Vec<BenchmarkSpec> {
                 .filter(|line| !line.trim().is_empty())
                 .map(|line| serde_json::from_str(line).expect("Failed to parse"))
                 .collect();
-            eprintln!("Loaded {} pgcmsiv.c32 benchmark specifications", specs.len());
+            eprintln!(
+                "Loaded {} pgcmsiv.c32 benchmark specifications",
+                specs.len()
+            );
             return specs;
         }
     }

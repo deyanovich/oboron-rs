@@ -248,7 +248,12 @@ mod tests {
         // …encrypt…
         let mut ct: *mut c_char = ptr::null_mut();
         assert_eq!(
-            oboron_enc(cs("hello obsigil").as_ptr(), cs("psiv.b64").as_ptr(), key.as_ptr(), &mut ct),
+            oboron_enc(
+                cs("hello obsigil").as_ptr(),
+                cs("psiv.b64").as_ptr(),
+                key.as_ptr(),
+                &mut ct
+            ),
             OBORON_OK
         );
         let obtext = cs(&unsafe { take(ct) });
@@ -256,7 +261,12 @@ mod tests {
         // …and round-trip back with the same explicit format.
         let mut pt: *mut c_char = ptr::null_mut();
         assert_eq!(
-            oboron_dec(obtext.as_ptr(), cs("psiv.b64").as_ptr(), key.as_ptr(), &mut pt),
+            oboron_dec(
+                obtext.as_ptr(),
+                cs("psiv.b64").as_ptr(),
+                key.as_ptr(),
+                &mut pt
+            ),
             OBORON_OK
         );
         assert_eq!(unsafe { take(pt) }, "hello obsigil");
@@ -266,7 +276,12 @@ mod tests {
     #[test]
     fn null_argument_is_reported_not_dereferenced() {
         let mut out: *mut c_char = ptr::null_mut();
-        let code = oboron_enc(ptr::null(), cs("psiv.b64").as_ptr(), cs("ab").as_ptr(), &mut out);
+        let code = oboron_enc(
+            ptr::null(),
+            cs("psiv.b64").as_ptr(),
+            cs("ab").as_ptr(),
+            &mut out,
+        );
         assert_eq!(code, OBORON_ERR_NULL_ARG);
         assert!(out.is_null());
         assert!(!oboron_last_error().is_null());
@@ -276,7 +291,12 @@ mod tests {
     fn oboron_error_surfaces_with_a_message() {
         // A bad key (not valid hex / wrong length) is an oboron error.
         let mut out: *mut c_char = ptr::null_mut();
-        let code = oboron_enc(cs("x").as_ptr(), cs("psiv.b64").as_ptr(), cs("nothex").as_ptr(), &mut out);
+        let code = oboron_enc(
+            cs("x").as_ptr(),
+            cs("psiv.b64").as_ptr(),
+            cs("nothex").as_ptr(),
+            &mut out,
+        );
         assert_eq!(code, OBORON_ERR_OBORON);
         assert!(out.is_null());
         assert!(!oboron_last_error().is_null());
@@ -287,7 +307,11 @@ mod tests {
     fn keyless_round_trip() {
         let mut ct: *mut c_char = ptr::null_mut();
         assert_eq!(
-            oboron_enc_keyless(cs("public claim").as_ptr(), cs("dsiv.b64").as_ptr(), &mut ct),
+            oboron_enc_keyless(
+                cs("public claim").as_ptr(),
+                cs("dsiv.b64").as_ptr(),
+                &mut ct
+            ),
             OBORON_OK
         );
         let obtext = cs(&unsafe { take(ct) });

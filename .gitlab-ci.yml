@@ -32,8 +32,11 @@ test:
   variables:
     GIT_SUBMODULE_STRATEGY: recursive
   script:
+    # --all-features covers every scheme plus mock/keyless. A pure
+    # default-only test run isn't separable here: the dev-dependency
+    # self-reference enables mock/keyless for the test binaries. The
+    # default lib surface is exercised by the single-scheme builds below.
     - cargo test -p oboron --all-features
-    - cargo test -p oboron
     - cargo build -p oboron --no-default-features --features dgcmsiv
     - cargo build -p oboron --no-default-features --features pgcmsiv
     - cargo build -p oboron --no-default-features --features dsiv
@@ -49,13 +52,19 @@ lint:
     - rustup component add clippy
     - cargo clippy --workspace --all-features -- -D warnings
 
+# Enforces rustfmt's default style across the whole workspace. No
+# rustfmt.toml — pure default style.
+fmt:
+  stage: test
+  script:
+    - rustup component add rustfmt
+    - cargo fmt --all -- --check
+
 # Builds the oboron wheel and runs the Python binding's tests across the
-# PyO3 boundary that the Rust core tests don't reach. Marked
-# allow_failure until validated on a first CI run; promote to required
-# afterwards.
+# PyO3 boundary that the Rust core tests don't reach. Required — this is
+# the only coverage of the PyO3 boundary.
 python-test:
   stage: test
-  allow_failure: true
   script:
     - apt-get update && apt-get install -y --no-install-recommends python3 python3-venv
     - python3 -m venv .venv
@@ -65,12 +74,12 @@ python-test:
     - maturin develop --manifest-path oboron-py/Cargo.toml
     - pytest oboron-py/python -q
 
-# Validates the declared MSRV (rust-version = 1.77). Non-blocking: a
-# failure flags that the floor needs revisiting, without gating merges.
+# Validates the declared MSRV (rust-version = 1.77). The committed
+# Cargo.lock is lockfile v3 so the 1.77 toolchain can parse it. Required
+# — a failure means the declared floor is no longer honest.
 msrv:
   stage: test
   image: rust:1.77
-  allow_failure: true
   cache: {}
   script:
     - cargo build -p oboron --all-features

@@ -155,8 +155,7 @@ fn test_mock1_via_new_with_format() {
 
     // mock is reachable through the factory only by value, never by
     // string — `Format::new(Scheme::Mock1, …)` + `new_with_format`.
-    let ob =
-        oboron::new_with_format(Format::new(Scheme::Mock1, Encoding::C32), &key).unwrap();
+    let ob = oboron::new_with_format(Format::new(Scheme::Mock1, Encoding::C32), &key).unwrap();
     assert_eq!(ob.scheme(), Scheme::Mock1);
 
     let ot = ob.enc("format test").unwrap();
@@ -195,9 +194,8 @@ fn test_mock1_from_bytes() {
 fn test_mock1_factory_from_bytes() {
     let key_bytes = [0u8; 64];
     // by-value Format (mock strings are fenced)
-    let ob =
-        oboron::from_bytes_with_format(Format::new(Scheme::Mock1, Encoding::C32), &key_bytes)
-            .unwrap();
+    let ob = oboron::from_bytes_with_format(Format::new(Scheme::Mock1, Encoding::C32), &key_bytes)
+        .unwrap();
 
     let plaintext = "factory from bytes";
     let ot = ob.enc(plaintext).unwrap();

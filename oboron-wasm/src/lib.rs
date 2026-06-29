@@ -169,40 +169,160 @@ macro_rules! impl_codec_class {
 }
 
 // Dgcmsiv variants (deterministic AES-GCM-SIV)
-impl_codec_class!(DgcmsivB32, ::oboron::DgcmsivB32, "dgcmsiv", "Dgcmsiv codec (deterministic AES-GCM-SIV) with B32 encoding.");
-impl_codec_class!(DgcmsivB64, ::oboron::DgcmsivB64, "dgcmsiv", "Dgcmsiv codec (deterministic AES-GCM-SIV) with B64 encoding.");
-impl_codec_class!(DgcmsivC32, ::oboron::DgcmsivC32, "dgcmsiv", "Dgcmsiv codec (deterministic AES-GCM-SIV) with C32 encoding.");
-impl_codec_class!(DgcmsivHex, ::oboron::DgcmsivHex, "dgcmsiv", "Dgcmsiv codec (deterministic AES-GCM-SIV) with Hex encoding.");
+impl_codec_class!(
+    DgcmsivB32,
+    ::oboron::DgcmsivB32,
+    "dgcmsiv",
+    "Dgcmsiv codec (deterministic AES-GCM-SIV) with B32 encoding."
+);
+impl_codec_class!(
+    DgcmsivB64,
+    ::oboron::DgcmsivB64,
+    "dgcmsiv",
+    "Dgcmsiv codec (deterministic AES-GCM-SIV) with B64 encoding."
+);
+impl_codec_class!(
+    DgcmsivC32,
+    ::oboron::DgcmsivC32,
+    "dgcmsiv",
+    "Dgcmsiv codec (deterministic AES-GCM-SIV) with C32 encoding."
+);
+impl_codec_class!(
+    DgcmsivHex,
+    ::oboron::DgcmsivHex,
+    "dgcmsiv",
+    "Dgcmsiv codec (deterministic AES-GCM-SIV) with Hex encoding."
+);
 
 // Dsiv variants (deterministic AES-SIV, nonce-misuse resistant)
-impl_codec_class!(DsivB32, ::oboron::DsivB32, "dsiv", "Dsiv codec (deterministic AES-SIV, nonce-misuse resistant) with B32 encoding.");
-impl_codec_class!(DsivB64, ::oboron::DsivB64, "dsiv", "Dsiv codec (deterministic AES-SIV, nonce-misuse resistant) with B64 encoding.");
-impl_codec_class!(DsivC32, ::oboron::DsivC32, "dsiv", "Dsiv codec (deterministic AES-SIV, nonce-misuse resistant) with C32 encoding.");
-impl_codec_class!(DsivHex, ::oboron::DsivHex, "dsiv", "Dsiv codec (deterministic AES-SIV, nonce-misuse resistant) with Hex encoding.");
+impl_codec_class!(
+    DsivB32,
+    ::oboron::DsivB32,
+    "dsiv",
+    "Dsiv codec (deterministic AES-SIV, nonce-misuse resistant) with B32 encoding."
+);
+impl_codec_class!(
+    DsivB64,
+    ::oboron::DsivB64,
+    "dsiv",
+    "Dsiv codec (deterministic AES-SIV, nonce-misuse resistant) with B64 encoding."
+);
+impl_codec_class!(
+    DsivC32,
+    ::oboron::DsivC32,
+    "dsiv",
+    "Dsiv codec (deterministic AES-SIV, nonce-misuse resistant) with C32 encoding."
+);
+impl_codec_class!(
+    DsivHex,
+    ::oboron::DsivHex,
+    "dsiv",
+    "Dsiv codec (deterministic AES-SIV, nonce-misuse resistant) with Hex encoding."
+);
 
 // Pgcmsiv variants (probabilistic AES-GCM-SIV)
-impl_codec_class!(PgcmsivB32, ::oboron::PgcmsivB32, "pgcmsiv", "Pgcmsiv codec (probabilistic AES-GCM-SIV) with B32 encoding.");
-impl_codec_class!(PgcmsivB64, ::oboron::PgcmsivB64, "pgcmsiv", "Pgcmsiv codec (probabilistic AES-GCM-SIV) with B64 encoding.");
-impl_codec_class!(PgcmsivC32, ::oboron::PgcmsivC32, "pgcmsiv", "Pgcmsiv codec (probabilistic AES-GCM-SIV) with C32 encoding.");
-impl_codec_class!(PgcmsivHex, ::oboron::PgcmsivHex, "pgcmsiv", "Pgcmsiv codec (probabilistic AES-GCM-SIV) with Hex encoding.");
+impl_codec_class!(
+    PgcmsivB32,
+    ::oboron::PgcmsivB32,
+    "pgcmsiv",
+    "Pgcmsiv codec (probabilistic AES-GCM-SIV) with B32 encoding."
+);
+impl_codec_class!(
+    PgcmsivB64,
+    ::oboron::PgcmsivB64,
+    "pgcmsiv",
+    "Pgcmsiv codec (probabilistic AES-GCM-SIV) with B64 encoding."
+);
+impl_codec_class!(
+    PgcmsivC32,
+    ::oboron::PgcmsivC32,
+    "pgcmsiv",
+    "Pgcmsiv codec (probabilistic AES-GCM-SIV) with C32 encoding."
+);
+impl_codec_class!(
+    PgcmsivHex,
+    ::oboron::PgcmsivHex,
+    "pgcmsiv",
+    "Pgcmsiv codec (probabilistic AES-GCM-SIV) with Hex encoding."
+);
 
 // Psiv variants (probabilistic AES-SIV)
-impl_codec_class!(PsivB32, ::oboron::PsivB32, "psiv", "Psiv codec (probabilistic AES-SIV) with B32 encoding.");
-impl_codec_class!(PsivB64, ::oboron::PsivB64, "psiv", "Psiv codec (probabilistic AES-SIV) with B64 encoding.");
-impl_codec_class!(PsivC32, ::oboron::PsivC32, "psiv", "Psiv codec (probabilistic AES-SIV) with C32 encoding.");
-impl_codec_class!(PsivHex, ::oboron::PsivHex, "psiv", "Psiv codec (probabilistic AES-SIV) with Hex encoding.");
+impl_codec_class!(
+    PsivB32,
+    ::oboron::PsivB32,
+    "psiv",
+    "Psiv codec (probabilistic AES-SIV) with B32 encoding."
+);
+impl_codec_class!(
+    PsivB64,
+    ::oboron::PsivB64,
+    "psiv",
+    "Psiv codec (probabilistic AES-SIV) with B64 encoding."
+);
+impl_codec_class!(
+    PsivC32,
+    ::oboron::PsivC32,
+    "psiv",
+    "Psiv codec (probabilistic AES-SIV) with C32 encoding."
+);
+impl_codec_class!(
+    PsivHex,
+    ::oboron::PsivHex,
+    "psiv",
+    "Psiv codec (probabilistic AES-SIV) with Hex encoding."
+);
 
 // Mock1 variants (testing — identity scheme, no encryption)
-impl_codec_class!(Mock1B32, ::oboron::Mock1B32, "mock", "Mock1 codec (identity scheme, for testing) with B32 encoding.");
-impl_codec_class!(Mock1B64, ::oboron::Mock1B64, "mock", "Mock1 codec (identity scheme, for testing) with B64 encoding.");
-impl_codec_class!(Mock1C32, ::oboron::Mock1C32, "mock", "Mock1 codec (identity scheme, for testing) with C32 encoding.");
-impl_codec_class!(Mock1Hex, ::oboron::Mock1Hex, "mock", "Mock1 codec (identity scheme, for testing) with Hex encoding.");
+impl_codec_class!(
+    Mock1B32,
+    ::oboron::Mock1B32,
+    "mock",
+    "Mock1 codec (identity scheme, for testing) with B32 encoding."
+);
+impl_codec_class!(
+    Mock1B64,
+    ::oboron::Mock1B64,
+    "mock",
+    "Mock1 codec (identity scheme, for testing) with B64 encoding."
+);
+impl_codec_class!(
+    Mock1C32,
+    ::oboron::Mock1C32,
+    "mock",
+    "Mock1 codec (identity scheme, for testing) with C32 encoding."
+);
+impl_codec_class!(
+    Mock1Hex,
+    ::oboron::Mock1Hex,
+    "mock",
+    "Mock1 codec (identity scheme, for testing) with Hex encoding."
+);
 
 // Mock2 variants (testing — reverse-plaintext scheme, no encryption)
-impl_codec_class!(Mock2B32, ::oboron::Mock2B32, "mock", "Mock2 codec (reverse-plaintext scheme, for testing) with B32 encoding.");
-impl_codec_class!(Mock2B64, ::oboron::Mock2B64, "mock", "Mock2 codec (reverse-plaintext scheme, for testing) with B64 encoding.");
-impl_codec_class!(Mock2C32, ::oboron::Mock2C32, "mock", "Mock2 codec (reverse-plaintext scheme, for testing) with C32 encoding.");
-impl_codec_class!(Mock2Hex, ::oboron::Mock2Hex, "mock", "Mock2 codec (reverse-plaintext scheme, for testing) with Hex encoding.");
+impl_codec_class!(
+    Mock2B32,
+    ::oboron::Mock2B32,
+    "mock",
+    "Mock2 codec (reverse-plaintext scheme, for testing) with B32 encoding."
+);
+impl_codec_class!(
+    Mock2B64,
+    ::oboron::Mock2B64,
+    "mock",
+    "Mock2 codec (reverse-plaintext scheme, for testing) with B64 encoding."
+);
+impl_codec_class!(
+    Mock2C32,
+    ::oboron::Mock2C32,
+    "mock",
+    "Mock2 codec (reverse-plaintext scheme, for testing) with C32 encoding."
+);
+impl_codec_class!(
+    Mock2Hex,
+    ::oboron::Mock2Hex,
+    "mock",
+    "Mock2 codec (reverse-plaintext scheme, for testing) with Hex encoding."
+);
 
 // ---------------------------------------------------------------------------
 // Ob — runtime-mutable format selection

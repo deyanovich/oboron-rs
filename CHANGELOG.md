@@ -11,6 +11,54 @@ but note that pre-1.0 releases may not adhere strictly to all guidelines.
 ------------
 
 
+[oboron v1.0.1] - 2026-06-28
+----------------------------
+
+Documentation, packaging, and hygiene cleanup over `1.0.0`. No API,
+behavior, or wire-format change — a pure patch release.
+
+### Documentation
+
+- Added a **Security** section to the crate-root docs and `README`,
+  and a new `SECURITY.md`: oboron and its `obcrypt` core are not
+  independently audited; the deterministic schemes (`dsiv`,
+  `dgcmsiv`) encrypt under a fixed nonce, sound only because AES-SIV /
+  AES-GCM-SIV are nonce-misuse-resistant (RFC 5297 / RFC 8452); and
+  the binding limit is cumulative data volume per key (the
+  AES-GCM-SIV birthday bound), so rotate the master key well before it
+  under high-volume use.
+- Documented the granular-at-library / uniform-at-CLI error design on
+  the `Error` enum (spec §5), and the deliberately case-insensitive
+  `Scheme` / `Encoding` `from_str` parsing.
+- Corrected the `ObAny` constructor docs that called the key "base64";
+  keys are 128-character hex only.
+
+### Packaging / metadata
+
+- `documentation` now points at <https://docs.rs/oboron> (the prior
+  `oboron.org/spec` link 404'd).
+- Replaced the MIT-only `README` license badge with a dual
+  `MIT OR Apache-2.0` badge linking the in-README license section.
+- Updated the license-file copyright years to `2025-2026`.
+- Dropped the inaccurate `obfuscation` keyword (that tier lives in the
+  separate `obu` crate) in favor of `aead`.
+- Removed the unused `num-bigint` and `generic-array` dependencies.
+
+### Security / correctness
+
+- Wrapped the transient key buffers in `MasterKey::from_hex` and
+  `generate_key` in `zeroize::Zeroizing`, so raw key material is wiped
+  on drop (the stored `obcrypt::Key` already zeroizes).
+
+### Testing / CI
+
+- Promoted the Python-binding test job to a required gate and added a
+  `cargo fmt --all -- --check` job.
+- Made the declared MSRV honest: the committed `Cargo.lock` is now
+  lockfile v3 so the `rust:1.77` job can parse it, and that job is no
+  longer `allow_failure`.
+
+
 [oboron v1.0.0] - 2026-06-28
 ----------------------------
 
@@ -65,7 +113,7 @@ release-readiness fixes, and now depends on the published
 --------------------------------
 
 Aligns the Rust implementation with **oboron protocol spec 1.0**
-(the "rev3" rewrite) and **obcrypt 1.0.0-rc1**. oboron is now an
+and **obcrypt 1.0.0-rc1**. oboron is now an
 authenticated-only core: the obtext is exactly the AEAD output,
 with no on-the-wire scheme marker. This release also rolls in the
 (previously unreleased) 0.10.0 extraction of the z-tier into the

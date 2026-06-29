@@ -40,16 +40,13 @@ void oboron_string_free(char *s);
 /* Generate a fresh random key as a 128-char hex string. */
 int32_t oboron_generate_key(char **out);
 
-/* Encrypt `plaintext` under `format` (e.g. "apsv.b64") and `key`. */
+/* Encrypt `plaintext` under `format` (e.g. "psiv.b64") and `key`. */
 int32_t oboron_enc(const char *plaintext, const char *format,
                    const char *key, char **out);
 
 /* Decrypt with an explicit `format` and `key`. */
 int32_t oboron_dec(const char *obtext, const char *format,
                    const char *key, char **out);
-
-/* Decrypt with `key`, autodetecting the scheme from the obtext. */
-int32_t oboron_autodec(const char *obtext, const char *key, char **out);
 
 #ifdef OBORON_KEYLESS
 /* Keyless (public built-in key) variants — no secrecy or
@@ -58,7 +55,6 @@ int32_t oboron_enc_keyless(const char *plaintext, const char *format,
                            char **out);
 int32_t oboron_dec_keyless(const char *obtext, const char *format,
                            char **out);
-int32_t oboron_autodec_keyless(const char *obtext, char **out);
 #endif /* OBORON_KEYLESS */
 
 #ifdef __cplusplus

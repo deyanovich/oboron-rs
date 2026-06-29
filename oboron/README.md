@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/oboron.svg)](https://crates.io/crates/oboron)
 [![Documentation](https://docs.rs/oboron/badge.svg)](https://docs.rs/oboron)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 [![MSRV](https://img.shields.io/badge/MSRV-1.77-blue.svg)](https://blog.rust-lang.org/2023/11/16/Rust-1.77.0.html)
 [![oboron-cli](https://img.shields.io/crates/v/oboron-cli?label=oboron-cli)](https://crates.io/crates/oboron-cli)
 [![oboron-py](https://img.shields.io/pypi/v/oboron?label=oboron-py)](https://pypi.org/project/oboron/)
@@ -640,9 +640,9 @@ consistent interface:
 
 ```rust
 // main interface: pass a 128-char hex key string.
-let ob = DgcmsivB64::new(&env::var("OBORON_KEY")?);       // hex key
+let ob = DgcmsivB64::new(&env::var("OBORON_KEY")?)?;       // hex key
 // explicit hex constructor:
-let ob = DgcmsivB64::from_hex_key(&env::var("HEX_KEY")?); // hex key
+let ob = DgcmsivB64::from_hex_key(&env::var("HEX_KEY")?)?; // hex key
 // raw bytes:
 let ob = DgcmsivB64::from_bytes(&key_bytes)?;             // raw bytes key
 // with "keyless" feature enabled:
@@ -795,6 +795,24 @@ run `git submodule update --init` afterwards) before
 - [`oboron-cli`](https://crates.io/crates/oboron-cli) — Command-line interface (`ob` binary)
 - [`oboron-py`](https://crates.io/crates/oboron-py) — Python bindings ([PyPI](https://pypi.org/project/oboron/))
 - [`obu`](https://gitlab.com/oboron/obu-rs) — the separate unauthenticated (`upcbc`) and obfuscation (`zdcbc`) crate
+
+## Security
+
+`oboron` is the string/encoding layer over the authenticated
+[`obcrypt`](https://gitlab.com/oboron/obcrypt-rs) core; the full
+model is in [`SECURITY.md`](SECURITY.md) and obcrypt's own
+`SECURITY.md`. Key points:
+
+- Neither `oboron` nor `obcrypt` has been independently
+  security-audited — evaluate accordingly for high-assurance use.
+- The deterministic schemes (`dsiv`, `dgcmsiv`) encrypt under a
+  fixed nonce, sound only because AES-SIV / AES-GCM-SIV are
+  nonce-misuse-resistant (RFC 5297, RFC 8452); equal plaintexts
+  yield equal obtext by design.
+- The binding limit is total data volume per key (the AES-GCM-SIV
+  birthday bound), not nonce reuse — rotate the master key well
+  before it under high-volume use.
+- Keys are 128-character lowercase hex; there is no base64 key form.
 
 ## Getting Help
 

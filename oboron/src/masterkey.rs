@@ -1,4 +1,5 @@
 use crate::Error;
+use zeroize::Zeroizing;
 
 /// Wraps the bytes-in/bytes-out [`obcrypt::Key`] with oboron's
 /// hex-string constructors and accessors.
@@ -28,9 +29,16 @@ impl MasterKey {
         if key_hex.bytes().any(|b| b.is_ascii_uppercase()) {
             return Err(Error::InvalidHex);
         }
-        let key_bytes: [u8; 64] = hex::decode(key_hex)?
-            .try_into()
-            .map_err(|_| Error::InvalidKeyLength)?;
+        // Hold the decoded bytes and the fixed-size copy in `Zeroizing`
+        // so the transient key material is wiped on drop; the
+        // `obcrypt::Key` that ultimately stores it zeroizes on its own.
+        let decoded = Zeroizing::new(hex::decode(key_hex)?);
+        let key_bytes: Zeroizing<[u8; 64]> = Zeroizing::new(
+            decoded
+                .as_slice()
+                .try_into()
+                .map_err(|_| Error::InvalidKeyLength)?,
+        );
         Self::from_bytes(&key_bytes)
     }
 

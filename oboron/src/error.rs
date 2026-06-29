@@ -1,6 +1,14 @@
 use thiserror::Error;
 
 /// All errors that can occur in oboron operations.
+///
+/// The variants are deliberately granular at the library layer so
+/// callers can diagnose failures precisely. Across a trust boundary,
+/// however, distinguishing *why* a decode/decrypt failed can leak an
+/// oracle: code exposing oboron to untrusted input should collapse
+/// every decode/decrypt failure into one uniform error before
+/// surfacing it. The oboron CLI performs exactly this collapse
+/// (spec §5).
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum Error {

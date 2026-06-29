@@ -6,7 +6,7 @@ build-backend = "maturin"
 name = "oboron"
 dynamic = ["version"]
 requires-python = ">=3.8"
-description = "Python bindings for oboron — string-in/string-out symmetric encryption + encoding (Dgcmsiv, Dsiv, Pgcmsiv, Psiv)."
+description = "Python bindings for oboron — string-in/string-out authenticated symmetric encryption + encoding (Dgcmsiv, Dsiv, Pgcmsiv, Psiv)."
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 license-files = ["LICENSE-MIT", "LICENSE-APACHE"]

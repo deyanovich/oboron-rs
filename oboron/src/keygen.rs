@@ -1,4 +1,5 @@
 use rand::RngCore;
+use zeroize::Zeroizing;
 
 /// Generate a cryptographically secure random 64-byte key and return
 /// it as a 128-character lowercase hex string.
@@ -17,9 +18,12 @@ use rand::RngCore;
 /// ```
 #[must_use]
 pub fn generate_key() -> String {
-    let mut key_bytes = [0u8; 64];
-    rand::thread_rng().fill_bytes(&mut key_bytes);
-    hex::encode(key_bytes)
+    // Zeroize the raw key bytes once they've been hex-encoded; the
+    // returned hex String is the caller's to manage.
+    let mut key_bytes = Zeroizing::new([0u8; 64]);
+    rand::thread_rng().fill_bytes(&mut *key_bytes);
+    // Encode from a slice so no un-zeroized array copy is created.
+    hex::encode(key_bytes.as_slice())
 }
 
 /// Deprecated alias for [`generate_key`].

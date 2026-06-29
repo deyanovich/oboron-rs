@@ -9,8 +9,7 @@ pub const HARDCODED_KEY_BYTES: [u8; 64] = [
 ];
 
 #[doc(hidden)]
-pub const HARDCODED_KEY_HEX: &str =
-    "38128463\
+pub const HARDCODED_KEY_HEX: &str = "38128463\
 3d02ea5f\
 35df8596\
 b5cc4218\

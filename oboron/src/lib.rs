@@ -194,6 +194,34 @@
 //! - C32 - Crockford base32
 //! - Hex - Hexadecimal
 //!
+//! # Security
+//!
+//! oboron is a thin string/encoding layer over the
+//! [`obcrypt`](https://docs.rs/obcrypt) authenticated-encryption core;
+//! the cryptography, threat model, and usage limits are documented in
+//! obcrypt's `SECURITY.md` and summarized in this crate's
+//! [`SECURITY.md`](https://gitlab.com/oboron/oboron-rs/-/blob/master/oboron/SECURITY.md).
+//! Key points:
+//!
+//! - **Not independently audited.** Neither oboron nor obcrypt has had
+//!   an external security audit. Evaluate accordingly for
+//!   high-assurance use.
+//! - **Deterministic schemes use a fixed nonce.** `dsiv` / `dgcmsiv`
+//!   encrypt under a constant (all-zero) nonce, sound *only* because
+//!   AES-SIV / AES-GCM-SIV are nonce-misuse-resistant
+//!   ([RFC 5297](https://www.rfc-editor.org/rfc/rfc5297),
+//!   [RFC 8452](https://www.rfc-editor.org/rfc/rfc8452)). The
+//!   confidentiality cost is the deterministic-equality leak those
+//!   schemes expose by design — equal plaintexts yield equal obtext.
+//! - **The binding limit is data volume, not nonce reuse.** Security
+//!   degrades only as the total data encrypted under one key
+//!   approaches the AES-GCM-SIV birthday bound — far out of reach for
+//!   the short-string workloads oboron targets. The library is
+//!   stateless, so honoring that bound is a deployment responsibility:
+//!   under high-volume use, rotate the master key well before it.
+//! - **Keys are 128-character lowercase hex.** There is no base64 key
+//!   encoding; generate keys with [`generate_key`].
+//!
 //! # The `ObtextCodec` Trait
 //!
 //! All types (`Ob`, `DsivC32`, `PsivB64`, etc.) except `Omnib` implement the `ObtextCodec` trait,
@@ -317,12 +345,12 @@ pub mod prelude {
     pub use crate::{DgcmsivB32, DgcmsivB64, DgcmsivC32, DgcmsivHex};
     #[cfg(feature = "dsiv")]
     pub use crate::{DsivB32, DsivB64, DsivC32, DsivHex};
+    pub use crate::{Encoding, Error, Format, ObtextCodec, Scheme};
+    pub use crate::{Ob, Omnib};
     #[cfg(feature = "pgcmsiv")]
     pub use crate::{PgcmsivB32, PgcmsivB64, PgcmsivC32, PgcmsivHex};
     #[cfg(feature = "psiv")]
     pub use crate::{PsivB32, PsivB64, PsivC32, PsivHex};
-    pub use crate::{Encoding, Error, Format, ObtextCodec, Scheme};
-    pub use crate::{Ob, Omnib};
 }
 
 // ============================================================================

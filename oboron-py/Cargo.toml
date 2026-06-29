@@ -3,7 +3,7 @@ name = "oboron-py"
 # Tracks the oboron Rust crate: 1.0.0 aligns with oboron protocol
 # spec 1.0 — authenticated-only core. The unauthenticated/obfuscation
 # (obu) layer is a separate package and is NOT bound here.
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 rust-version = "1.77.0"
 authors = ["Bojan Đuričković"]

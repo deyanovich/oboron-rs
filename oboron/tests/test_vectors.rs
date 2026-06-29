@@ -146,7 +146,8 @@ fn load_negative_vectors() -> Vec<NegativeVector> {
 
     for path in &possible_paths {
         if path.exists() {
-            let data = fs::read_to_string(path).expect("Failed to read negative-test-vectors.jsonl");
+            let data =
+                fs::read_to_string(path).expect("Failed to read negative-test-vectors.jsonl");
             return data
                 .lines()
                 .filter(|line| !line.trim().is_empty())
@@ -187,7 +188,10 @@ fn test_negative_vectors() {
             result.is_err(),
             "negative vector should have been REJECTED but succeeded: \
              op={} format={} input={:?} reason={:?}",
-            v.op, v.format, v.input, v.reason
+            v.op,
+            v.format,
+            v.input,
+            v.reason
         );
         tested += 1;
     }

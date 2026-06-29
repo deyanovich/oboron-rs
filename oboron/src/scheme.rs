@@ -91,6 +91,10 @@ impl std::str::FromStr for Scheme {
     /// the `Scheme::Mock1` / `Scheme::Mock2` variants when needed in
     /// tests.
     ///
+    /// Parsing is case-insensitive (`"DSIV"` and `"dsiv"` both parse),
+    /// a deliberate ergonomics choice — more lenient than the
+    /// case-sensitive scheme tokens of spec §1.1.
+    ///
     /// # Errors
     ///
     /// [`Error::UnknownScheme`] if `s` doesn't match a feature-enabled

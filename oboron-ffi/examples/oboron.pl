@@ -2,7 +2,7 @@
 # Reference Perl binding for the oboron C ABI via FFI::Platypus — a
 # sketch to bind against, not yet a packaged module. It loads the
 # prebuilt shared library at runtime (no XS compilation), so all the
-# crypto is the same audited Rust core every other binding uses.
+# crypto is the same Rust core every other binding uses.
 #
 # Prereqs:
 #   cargo build --release -p oboron-ffi     # builds liboboron_ffi.so
@@ -24,7 +24,7 @@ $ffi->attach( oboron_last_error  => []                                  => 'stri
 $ffi->attach( oboron_string_free => ['opaque']                          => 'void'   );
 $ffi->attach( oboron_generate_key=> ['opaque*']                         => 'int'    );
 $ffi->attach( oboron_enc         => ['string','string','string','opaque*'] => 'int' );
-$ffi->attach( oboron_autodec     => ['string','string','opaque*']       => 'int'    );
+$ffi->attach( oboron_dec         => ['string','string','string','opaque*'] => 'int' );
 
 # Marshal the (status, out-pointer) convention into a Perl string:
 # check the status, copy the C string into Perl, then free the
@@ -42,11 +42,11 @@ sub _take {
 # side effect) runs before $o is read as the second argument to _take.
 sub generate_key { my $o; _take( oboron_generate_key( \$o ), $o ) }
 sub enc { my ( $pt, $fmt, $key ) = @_; my $o; _take( oboron_enc( $pt, $fmt, $key, \$o ), $o ) }
-sub autodec { my ( $ct, $key ) = @_; my $o; _take( oboron_autodec( $ct, $key, \$o ), $o ) }
+sub dec { my ( $ct, $fmt, $key ) = @_; my $o; _take( oboron_dec( $ct, $fmt, $key, \$o ), $o ) }
 
 my $key    = generate_key();
-my $obtext = enc( 'hello obsigil', 'apsv.b64', $key );
-my $plain  = autodec( $obtext, $key );
+my $obtext = enc( 'hello obsigil', 'psiv.b64', $key );
+my $plain  = dec( $obtext, 'psiv.b64', $key );
 
 print "key     : $key\n";
 print "obtext  : $obtext\n";

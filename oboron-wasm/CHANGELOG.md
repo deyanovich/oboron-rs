@@ -7,6 +7,15 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 
+## [1.0.0] - 2026-06-28
+
+Version-aligned with oboron core **1.0.0** (authenticated-only,
+protocol spec 1.0). The binding surface is unchanged from
+`1.0.0-rc1`; the no-encryption `mock` codecs are no longer in the
+default feature set. Not yet published to npm — this entry records
+the version alignment ahead of a first release.
+
+
 ## [1.0.0-rc1] - 2026-06-16
 
 ### Added

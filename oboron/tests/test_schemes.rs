@@ -2,11 +2,11 @@
 use oboron::DgcmsivB64;
 #[cfg(feature = "dsiv")]
 use oboron::{DsivB64, DsivC32, DsivHex};
+use oboron::{Encoding, Ob};
 #[cfg(feature = "pgcmsiv")]
 use oboron::{PgcmsivB64, PgcmsivC32, PgcmsivHex};
 #[cfg(feature = "psiv")]
 use oboron::{PsivB64, PsivC32, PsivHex};
-use oboron::{Encoding, Ob};
 
 #[test]
 #[cfg(feature = "pgcmsiv")]
@@ -176,12 +176,7 @@ fn test_ob_basic() {
     let plaintext = "Testing Ob";
 
     // Test with different schemes
-    for scheme in &[
-        Scheme::Dgcmsiv,
-        Scheme::Pgcmsiv,
-        Scheme::Dsiv,
-        Scheme::Psiv,
-    ] {
+    for scheme in &[Scheme::Dgcmsiv, Scheme::Pgcmsiv, Scheme::Dsiv, Scheme::Psiv] {
         ob.set_scheme(*scheme)
             .expect(&format!("Failed to set scheme {:?}", scheme));
 
@@ -210,9 +205,22 @@ fn test_ob_all_formats() {
     let plaintext = "Testing all Ob formats";
 
     let formats = [
-        "dgcmsiv.c32", "dgcmsiv.b32", "dgcmsiv.b64", "dgcmsiv.hex", "pgcmsiv.c32", "pgcmsiv.b32", "pgcmsiv.b64",
-        "pgcmsiv.hex", "dsiv.c32", "dsiv.b32", "dsiv.b64", "dsiv.hex", "psiv.c32", "psiv.b32",
-        "psiv.b64", "psiv.hex",
+        "dgcmsiv.c32",
+        "dgcmsiv.b32",
+        "dgcmsiv.b64",
+        "dgcmsiv.hex",
+        "pgcmsiv.c32",
+        "pgcmsiv.b32",
+        "pgcmsiv.b64",
+        "pgcmsiv.hex",
+        "dsiv.c32",
+        "dsiv.b32",
+        "dsiv.b64",
+        "dsiv.hex",
+        "psiv.c32",
+        "psiv.b32",
+        "psiv.b64",
+        "psiv.hex",
     ];
 
     for format in &formats {
@@ -341,7 +349,9 @@ fn test_all_schemes_long_string() {
     let ot = pgcmsiv
         .enc(&plaintext)
         .expect("Failed to enc long string with pgcmsiv");
-    let pt2 = pgcmsiv.dec(&ot).expect("Failed to dec long string with pgcmsiv");
+    let pt2 = pgcmsiv
+        .dec(&ot)
+        .expect("Failed to dec long string with pgcmsiv");
     assert_eq!(pt2, plaintext, "Long string decoding mismatch for pgcmsiv");
 
     // Test Dsiv

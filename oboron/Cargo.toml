@@ -6,18 +6,18 @@ name = "oboron"
 # unauthenticated layer lives in the `obu` crate), the on-the-wire
 # scheme marker removed (obtext is pure AEAD output), `autodec`
 # removed, and keys are hex-only (no base64).
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 rust-version = "1.77.0"
 license = "MIT OR Apache-2.0"
 repository = "https://gitlab.com/oboron/oboron-rs"
 authors = ["Bojan Đuričković"]
 description = "Encryption and encoding library for developer ergonomics: prefix entropy, compact outputs, high performance"
-keywords = ["encryption", "obfuscation", "encoding", "base32", "identifiers"]
+keywords = ["encryption", "aead", "encoding", "base32", "identifiers"]
 categories = ["cryptography", "encoding"]
 readme = "README.md"
 homepage = "https://oboron.org/"
-documentation = "https://oboron.org/spec"
+documentation = "https://docs.rs/oboron"
 
 [features]
 # Default: all four authenticated core schemes.
@@ -44,10 +44,8 @@ keyless = []
 obcrypt = { workspace = true, default-features = false }
 
 # Always needed
-zeroize = { version = "1", features = ["derive"] }
+zeroize = "1"
 data-encoding = "2.5"
-generic-array = "1.0"
-num-bigint = "0.4.6"
 thiserror = "1.0"
 hex = "0.4"
 once_cell = "1.21.3"

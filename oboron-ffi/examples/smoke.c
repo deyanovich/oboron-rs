@@ -20,11 +20,11 @@ int main(void) {
     if (oboron_generate_key(&key) != OBORON_OK)
         return fail("generate_key");
 
-    if (oboron_enc("hello obsigil", "apsv.b64", key, &obtext) != OBORON_OK)
+    if (oboron_enc("hello obsigil", "psiv.b64", key, &obtext) != OBORON_OK)
         return fail("enc");
 
-    if (oboron_autodec(obtext, key, &plaintext) != OBORON_OK)
-        return fail("autodec");
+    if (oboron_dec(obtext, "psiv.b64", key, &plaintext) != OBORON_OK)
+        return fail("dec");
 
     printf("key     : %s\n", key);
     printf("obtext  : %s\n", obtext);

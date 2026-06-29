@@ -2,7 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/oboron)](https://pypi.org/project/oboron/)
 [![Python Versions](https://img.shields.io/pypi/pyversions/oboron)](https://pypi.org/project/oboron/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://gitlab.com/oboron/oboron-rs/-/blob/master/oboron-py/LICENSE)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 [![oboron crate](https://img.shields.io/crates/v/oboron?label=oboron)](https://crates.io/crates/oboron)
 
 Python bindings for [`oboron`][oboron-rs] — a *string-in,
