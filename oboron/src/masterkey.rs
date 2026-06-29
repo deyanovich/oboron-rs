@@ -23,6 +23,11 @@ impl MasterKey {
     /// This is the canonical text encoding for oboron keys.
     #[inline]
     pub fn from_hex(key_hex: &str) -> Result<Self, Error> {
+        // Spec §3.3: keys MUST be lowercase hex. The `hex` crate decodes
+        // case-insensitively, so reject any uppercase explicitly.
+        if key_hex.bytes().any(|b| b.is_ascii_uppercase()) {
+            return Err(Error::InvalidHex);
+        }
         let key_bytes: [u8; 64] = hex::decode(key_hex)?
             .try_into()
             .map_err(|_| Error::InvalidKeyLength)?;

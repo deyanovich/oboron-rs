@@ -1,7 +1,10 @@
 //! Tests for mock1 (identity scheme)
 //!
-//! mock1 is a non-encrypting identity scheme that's always available.
-//! It should be tested first since it has no crypto dependencies.
+//! mock1 is a non-encrypting identity scheme available for testing.
+//! It is deliberately *not* selectable through any string/config
+//! channel (`Scheme::from_str`, `Format::from_str`, the string-format
+//! factories) — a no-encryption scheme must only be constructible
+//! explicitly, by value, via `Scheme::Mock1` / `Format::new`.
 
 use oboron::{Encoding, Format, Scheme};
 
@@ -121,7 +124,9 @@ fn test_mock1_dec() {
 #[cfg(feature = "dsiv")]
 fn test_mock1_cannot_dec_other_schemes_strict() {
     let key = oboron::generate_key();
-    let mock1 = oboron::Ob::new("mock1.c32", &key).unwrap();
+    // mock1 is built by value (it is not string-parseable); a real
+    // scheme like dsiv still parses from a string.
+    let mock1 = oboron::Ob::new(Format::new(Scheme::Mock1, Encoding::C32), &key).unwrap();
     let dsiv = oboron::Ob::new("dsiv.c32", &key).unwrap();
 
     let plaintext = "cross-scheme test";
@@ -145,20 +150,32 @@ fn test_mock1_scheme_info() {
 }
 
 #[test]
-fn test_mock1_format_string() {
+fn test_mock1_via_new_with_format() {
     let key = oboron::generate_key();
 
-    // Test creating via format string
-    let ob = oboron::new("mock1.c32", &key).unwrap();
+    // mock is reachable through the factory only by value, never by
+    // string — `Format::new(Scheme::Mock1, …)` + `new_with_format`.
+    let ob =
+        oboron::new_with_format(Format::new(Scheme::Mock1, Encoding::C32), &key).unwrap();
+    assert_eq!(ob.scheme(), Scheme::Mock1);
+
     let ot = ob.enc("format test").unwrap();
     let pt2 = ob.dec(&ot).unwrap();
     assert_eq!(pt2, "format test");
+}
 
-    // Test all format strings
-    let formats = vec!["mock1.c32", "mock1.b64", "mock1.hex"];
-    for format_str in formats {
-        let ob = oboron::new(format_str, &key).unwrap();
-        assert_eq!(ob.scheme(), Scheme::Mock1);
+#[test]
+fn test_mock1_strings_are_fenced() {
+    let key = oboron::generate_key();
+
+    // None of the string-format entry points may yield a mock codec.
+    for s in ["mock1.c32", "mock1.b32", "mock1.b64", "mock1.hex"] {
+        assert!(oboron::new(s, &key).is_err(), "new({s}) should be fenced");
+        assert!(
+            oboron::enc("x", s, &key).is_err(),
+            "enc(.., {s}) should be fenced"
+        );
+        assert!(Format::from_str(s).is_err(), "Format::from_str({s}) fenced");
     }
 }
 
@@ -177,7 +194,10 @@ fn test_mock1_from_bytes() {
 #[test]
 fn test_mock1_factory_from_bytes() {
     let key_bytes = [0u8; 64];
-    let ob = oboron::from_bytes("mock1.c32", &key_bytes).unwrap();
+    // by-value Format (mock strings are fenced)
+    let ob =
+        oboron::from_bytes_with_format(Format::new(Scheme::Mock1, Encoding::C32), &key_bytes)
+            .unwrap();
 
     let plaintext = "factory from bytes";
     let ot = ob.enc(plaintext).unwrap();
@@ -187,34 +207,29 @@ fn test_mock1_factory_from_bytes() {
 }
 
 #[test]
-fn test_mock1_convenience_functions() {
+fn test_mock1_convenience_functions_reject_string() {
     let key = oboron::generate_key();
 
-    // Test enc/dec convenience functions
-    let plaintext = "convenience test";
-    let ot = oboron::enc(plaintext, "mock1.c32", &key).unwrap();
-    let pt2 = oboron::dec(&ot, "mock1.c32", &key).unwrap();
-
-    assert_eq!(pt2, plaintext);
+    // The string-format convenience functions must reject mock.
+    assert!(oboron::enc("convenience test", "mock1.c32", &key).is_err());
+    assert!(oboron::dec("whatever", "mock1.c32", &key).is_err());
 }
 
 #[test]
-fn test_mock1_keyless_functions() {
-    let plaintext = "keyless convenience";
-
-    let ot = oboron::enc_keyless(plaintext, "mock1.c32").unwrap();
-    let pt2 = oboron::dec_keyless(&ot, "mock1.c32").unwrap();
-
-    assert_eq!(pt2, plaintext);
+fn test_mock1_keyless_functions_reject_string() {
+    // The keyless string-format convenience functions must reject mock.
+    assert!(oboron::enc_keyless("keyless convenience", "mock1.c32").is_err());
+    assert!(oboron::dec_keyless("whatever", "mock1.c32").is_err());
 }
 
 #[test]
-fn test_mock1_ob_any_default() {
+#[cfg(feature = "dgcmsiv")]
+fn test_ob_any_default_is_not_mock() {
     let key = oboron::generate_key();
 
-    // ObAny should default to mock1 now
+    // ObAny defaults to the secure dgcmsiv scheme, never to mock.
     let ob = oboron::ObAny::new(&key).unwrap();
-    assert_eq!(ob.scheme(), Scheme::Mock1);
+    assert_eq!(ob.scheme(), Scheme::Dgcmsiv);
 
     let plaintext = "ObAny default test";
     let ot = ob.enc(plaintext).unwrap();
@@ -278,8 +293,8 @@ fn test_mock1_key_getter() {
 fn test_mock1_encoding_mismatch() {
     let key = oboron::generate_key();
 
-    let ob_b32 = oboron::Ob::new("mock1.c32", &key).unwrap();
-    let ob_b64 = oboron::Ob::new("mock1.b64", &key).unwrap();
+    let ob_b32 = oboron::Ob::new(Format::new(Scheme::Mock1, Encoding::C32), &key).unwrap();
+    let ob_b64 = oboron::Ob::new(Format::new(Scheme::Mock1, Encoding::B64), &key).unwrap();
 
     let plaintext = "encoding mismatch";
     let enc_b32 = ob_b32.enc(plaintext).unwrap();
@@ -300,27 +315,18 @@ fn test_mock1_scheme_string() {
 }
 
 #[test]
-fn test_mock1_parse_scheme() {
-    let scheme: Scheme = "mock1".parse().unwrap();
-    assert_eq!(scheme, Scheme::Mock1);
-
-    let scheme: Scheme = "MOCK1".parse().unwrap(); // case insensitive
-    assert_eq!(scheme, Scheme::Mock1);
+fn test_mock1_scheme_not_string_parseable() {
+    // A no-encryption scheme must never be selectable from a string.
+    assert!("mock1".parse::<Scheme>().is_err());
+    assert!("MOCK1".parse::<Scheme>().is_err());
 }
 
 #[test]
-fn test_mock1_format_parsing() {
-    let format = Format::from_str("mock1.c32").unwrap();
-    assert_eq!(format.scheme(), Scheme::Mock1);
-    assert_eq!(format.encoding(), Encoding::C32);
-
-    let format = Format::from_str("mock1.b64").unwrap();
-    assert_eq!(format.scheme(), Scheme::Mock1);
-    assert_eq!(format.encoding(), Encoding::B64);
-
-    let format = Format::from_str("mock1.hex").unwrap();
-    assert_eq!(format.scheme(), Scheme::Mock1);
-    assert_eq!(format.encoding(), Encoding::Hex);
+fn test_mock1_format_not_string_parseable() {
+    // Mock formats are fenced out of the string parser; construct by value.
+    assert!(Format::from_str("mock1.c32").is_err());
+    assert!(Format::from_str("mock1.b64").is_err());
+    assert!(Format::from_str("mock1.hex").is_err());
 }
 
 #[test]
@@ -360,4 +366,22 @@ fn test_mock1_sequential_operations() {
 fn test_mock1_is_deterministic() {
     // mock1 should report as deterministic
     assert!(Scheme::Mock1.is_deterministic());
+}
+
+#[test]
+fn test_mock1_dec_rejects_non_utf8() {
+    // Regression guard for the P0-1 fix: the core dec path ALWAYS
+    // validates UTF-8 (spec §4.1) and never returns an unchecked String.
+    // mock1 is the identity scheme, so a hex obtext decodes straight to
+    // raw bytes as the "plaintext" — feeding bytes that aren't valid
+    // UTF-8 must surface Error::InvalidUtf8, not undefined behavior.
+    let key = oboron::generate_key();
+    let ob = oboron::Mock1Hex::new(&key).unwrap();
+
+    // 0xff 0xfe is not valid UTF-8.
+    let result = ob.dec("fffe");
+    assert!(
+        matches!(result, Err(oboron::Error::InvalidUtf8)),
+        "expected InvalidUtf8, got {result:?}"
+    );
 }

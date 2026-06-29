@@ -79,6 +79,9 @@ impl Format {
     /// Parse format from compact string representation (e.g., "dsiv.c32", "dgcmsiv.b64")
     ///
     /// This uses fast match-based parsing for maximum performance.
+    // Intentional inherent shortcut alongside the `FromStr` impl, so
+    // callers can write `Format::from_str(s)` without the trait import.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, Error> {
         Ok(match s {
             #[cfg(feature = "dgcmsiv")]
@@ -117,28 +120,11 @@ impl Format {
             #[cfg(feature = "psiv")]
             crate::PSIV_HEX_STR => psiv_formats::PSIV_HEX,
 
-            // Testing
-
-            // mock1 variants
-            #[cfg(feature = "mock")]
-            crate::MOCK1_C32_STR => mock_formats::MOCK1_C32,
-            #[cfg(feature = "mock")]
-            crate::MOCK1_B32_STR => mock_formats::MOCK1_B32,
-            #[cfg(feature = "mock")]
-            crate::MOCK1_B64_STR => mock_formats::MOCK1_B64,
-            #[cfg(feature = "mock")]
-            crate::MOCK1_HEX_STR => mock_formats::MOCK1_HEX,
-
-            // mock2 variants
-            #[cfg(feature = "mock")]
-            crate::MOCK2_C32_STR => mock_formats::MOCK2_C32,
-            #[cfg(feature = "mock")]
-            crate::MOCK2_B32_STR => mock_formats::MOCK2_B32,
-            #[cfg(feature = "mock")]
-            crate::MOCK2_B64_STR => mock_formats::MOCK2_B64,
-            #[cfg(feature = "mock")]
-            crate::MOCK2_HEX_STR => mock_formats::MOCK2_HEX,
-
+            // The testing-only mock1 / mock2 formats are deliberately
+            // *not* parseable from a string, even when the `mock` feature
+            // is enabled: a no-encryption scheme must never be selectable
+            // through a string/config channel. Build them explicitly with
+            // `Format::new(Scheme::Mock1, …)` when needed in tests.
             _ => return Err(Error::InvalidFormat),
         })
     }
@@ -212,7 +198,8 @@ mod tests {
 
     #[test]
     fn test_format_from_str_all_combinations() {
-        // Define all schemes
+        // Only the authenticated core schemes are string-parseable; the
+        // testing-only mock schemes are deliberately fenced out.
         let schemes = vec![
             #[cfg(feature = "dgcmsiv")]
             Scheme::Dgcmsiv,
@@ -222,11 +209,6 @@ mod tests {
             Scheme::Dsiv,
             #[cfg(feature = "psiv")]
             Scheme::Psiv,
-            // Testing
-            #[cfg(feature = "mock")]
-            Scheme::Mock1,
-            #[cfg(feature = "mock")]
-            Scheme::Mock2,
         ];
 
         // Define all encodings
@@ -266,18 +248,11 @@ mod tests {
 
     #[test]
     fn test_format_to_string_roundtrip() {
-        // Define test cases: (scheme, encoding, expected_string)
-        #[cfg(feature = "mock")]
-        let mut test_cases = vec![
-            (Scheme::Mock2, Encoding::C32, "mock2.c32"),
-            (Scheme::Mock2, Encoding::B32, "mock2.b32"),
-            (Scheme::Mock2, Encoding::B64, "mock2.b64"),
-            (Scheme::Mock2, Encoding::Hex, "mock2.hex"),
-            (Scheme::Mock1, Encoding::C32, "mock1.c32"),
-            (Scheme::Mock1, Encoding::B32, "mock1.b32"),
-            (Scheme::Mock1, Encoding::B64, "mock1.b64"),
-            (Scheme::Mock1, Encoding::Hex, "mock1.hex"),
-        ];
+        // Define test cases: (scheme, encoding, expected_string).
+        // Mock schemes are excluded — they round-trip through `to_string`
+        // but are deliberately not parseable back from a string.
+        #[allow(unused_mut)]
+        let mut test_cases: Vec<(Scheme, Encoding, &str)> = vec![];
 
         #[cfg(feature = "dgcmsiv")]
         test_cases.extend(vec![
@@ -339,10 +314,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg(all(feature = "secure-schemes", feature = "mock"))]
+    #[cfg(feature = "secure-schemes")]
     fn test_all_schemes_support_both_base32_variants() {
         // All schemes should support both RFC 4648 base32 (b32) and Crockford base32 (c32)
-        let schemes = vec!["dgcmsiv", "pgcmsiv", "dsiv", "psiv", "mock1", "mock2"];
+        let schemes = vec!["dgcmsiv", "pgcmsiv", "dsiv", "psiv"];
 
         for scheme_str in schemes {
             // Test Crockford base32 (c32)

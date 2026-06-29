@@ -37,14 +37,11 @@ pub(crate) fn dec_from_format(
         Scheme::Mock2 => obcrypt::schemes::mock2::decrypt(&buffer, master_key)?,
     };
 
-    #[cfg(feature = "unchecked-utf8")]
-    {
-        Ok(unsafe { String::from_utf8_unchecked(plaintext_bytes) })
-    }
-    #[cfg(not(feature = "unchecked-utf8"))]
-    {
-        String::from_utf8(plaintext_bytes).map_err(|_| Error::InvalidUtf8)
-    }
+    // The core dec path always validates UTF-8 (spec §4.1): a decrypt
+    // must never hand back an unchecked `String`. Callers needing raw
+    // bytes (non-UTF-8 plaintext) should use obcrypt's bytes-in/bytes-out
+    // core directly.
+    String::from_utf8(plaintext_bytes).map_err(|_| Error::InvalidUtf8)
 }
 
 /// Decode text encoding to raw bytes.

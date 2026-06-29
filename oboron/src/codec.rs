@@ -94,21 +94,6 @@ macro_rules! impl_codec_32 {
                 })
             }
 
-            /// Deprecated alias for [`Self::from_hex_key`].
-            ///
-            /// The 0.8.x `Omnib` used `from_key_hex`; this alias is
-            /// kept for migration. Canonical form is
-            /// `from_<format>_<target>` (e.g. `from_hex_key`,
-            /// `from_base64_secret`).
-            #[inline]
-            #[deprecated(
-                since = "0.9.0",
-                note = "use from_hex_key instead — standard from_<format>_<target> pattern"
-            )]
-            pub fn from_key_hex(key_hex: &str) -> Result<Self, Error> {
-                Self::from_hex_key(key_hex)
-            }
-
             /// Create a new instance from a 64-byte key.
             #[inline]
             pub fn from_bytes(key_bytes: &[u8; 64]) -> Result<Self, Error> {
@@ -162,15 +147,10 @@ macro_rules! impl_codec_32 {
                 // type; a wrong scheme fails the AEAD tag check.
                 let plaintext_bytes = $decrypt_fn(&buffer, self.masterkey.obcrypt_key())?;
 
-                // Convert to string
-                #[cfg(feature = "unchecked-utf8")]
-                {
-                    Ok(unsafe { String::from_utf8_unchecked(plaintext_bytes) })
-                }
-                #[cfg(not(feature = "unchecked-utf8"))]
-                {
-                    String::from_utf8(plaintext_bytes).map_err(|_| Error::InvalidUtf8)
-                }
+                // Convert to string. The core dec path always validates
+                // UTF-8 (spec §4.1) — a decrypt must never return an
+                // unchecked `String`.
+                String::from_utf8(plaintext_bytes).map_err(|_| Error::InvalidUtf8)
             }
 
             #[inline(always)]
@@ -283,21 +263,6 @@ macro_rules! impl_codec_64 {
                 })
             }
 
-            /// Deprecated alias for [`Self::from_hex_key`].
-            ///
-            /// The 0.8.x `Omnib` used `from_key_hex`; this alias is
-            /// kept for migration. Canonical form is
-            /// `from_<format>_<target>` (e.g. `from_hex_key`,
-            /// `from_base64_secret`).
-            #[inline]
-            #[deprecated(
-                since = "0.9.0",
-                note = "use from_hex_key instead — standard from_<format>_<target> pattern"
-            )]
-            pub fn from_key_hex(key_hex: &str) -> Result<Self, Error> {
-                Self::from_hex_key(key_hex)
-            }
-
             /// Create a new instance from a 64-byte key.
             #[inline]
             pub fn from_bytes(key_bytes: &[u8; 64]) -> Result<Self, Error> {
@@ -351,15 +316,10 @@ macro_rules! impl_codec_64 {
                 // type; a wrong scheme fails the AEAD tag check.
                 let plaintext_bytes = $decrypt_fn(&buffer, self.masterkey.obcrypt_key())?;
 
-                // Convert to string
-                #[cfg(feature = "unchecked-utf8")]
-                {
-                    Ok(unsafe { String::from_utf8_unchecked(plaintext_bytes) })
-                }
-                #[cfg(not(feature = "unchecked-utf8"))]
-                {
-                    String::from_utf8(plaintext_bytes).map_err(|_| Error::InvalidUtf8)
-                }
+                // Convert to string. The core dec path always validates
+                // UTF-8 (spec §4.1) — a decrypt must never return an
+                // unchecked `String`.
+                String::from_utf8(plaintext_bytes).map_err(|_| Error::InvalidUtf8)
             }
 
             #[inline(always)]
@@ -824,29 +784,20 @@ impl ObtextCodec for ObAny {
 impl ObAny {
     /// Create a new instance with a 128-character hex string key.
     ///
-    /// Defaults to mock1.c32 format.
+    /// Defaults to dgcmsiv.c32 format.
     pub fn new(key: &str) -> Result<Self, Error> {
-        #[cfg(feature = "mock")]
-        return Ok(ObAny::Mock1C32(Mock1C32::new(key)?));
         #[cfg(feature = "dgcmsiv")]
-        #[cfg(not(any(feature = "mock")))]
         return Ok(ObAny::DgcmsivC32(DgcmsivC32::new(key)?));
         #[cfg(feature = "pgcmsiv")]
-        #[cfg(not(any(feature = "mock", feature = "dgcmsiv")))]
+        #[cfg(not(any(feature = "dgcmsiv")))]
         return Ok(ObAny::PgcmsivC32(PgcmsivC32::new(key)?));
         #[cfg(feature = "dsiv")]
-        #[cfg(not(any(feature = "mock", feature = "dgcmsiv", feature = "pgcmsiv")))]
+        #[cfg(not(any(feature = "dgcmsiv", feature = "pgcmsiv")))]
         return Ok(ObAny::DsivC32(DsivC32::new(key)?));
         #[cfg(feature = "psiv")]
-        #[cfg(not(any(
-            feature = "mock",
-            feature = "dgcmsiv",
-            feature = "pgcmsiv",
-            feature = "dsiv"
-        )))]
+        #[cfg(not(any(feature = "dgcmsiv", feature = "pgcmsiv", feature = "dsiv")))]
         return Ok(ObAny::PsivC32(PsivC32::new(key)?));
         #[cfg(not(any(
-            feature = "mock",
             feature = "dgcmsiv",
             feature = "pgcmsiv",
             feature = "dsiv",
@@ -857,35 +808,25 @@ impl ObAny {
 
     /// Create a new instance from a 64-byte key.
     ///
-    /// Defaults to mock1.c32 format.
+    /// Defaults to dgcmsiv.c32 format.
     #[inline]
     pub fn from_bytes(key_bytes: &[u8; 64]) -> Result<Self, Error> {
-        #[cfg(feature = "mock")]
-        return Ok(ObAny::Mock1C32(Mock1C32 {
-            masterkey: MasterKey::from_bytes(key_bytes)?,
-        }));
         #[cfg(feature = "dgcmsiv")]
-        #[cfg(not(any(feature = "mock")))]
         return Ok(ObAny::DgcmsivC32(DgcmsivC32 {
             masterkey: MasterKey::from_bytes(key_bytes)?,
         }));
         #[cfg(feature = "pgcmsiv")]
-        #[cfg(not(any(feature = "mock", feature = "dgcmsiv")))]
+        #[cfg(not(any(feature = "dgcmsiv")))]
         return Ok(ObAny::PgcmsivC32(PgcmsivC32 {
             masterkey: MasterKey::from_bytes(key_bytes)?,
         }));
         #[cfg(feature = "dsiv")]
-        #[cfg(not(any(feature = "mock", feature = "dgcmsiv", feature = "pgcmsiv")))]
+        #[cfg(not(any(feature = "dgcmsiv", feature = "pgcmsiv")))]
         return Ok(ObAny::DsivC32(DsivC32 {
             masterkey: MasterKey::from_bytes(key_bytes)?,
         }));
         #[cfg(feature = "psiv")]
-        #[cfg(not(any(
-            feature = "dgcmsiv",
-            feature = "dsiv",
-            feature = "pgcmsiv",
-            feature = "mock",
-        )))]
+        #[cfg(not(any(feature = "dgcmsiv", feature = "dsiv", feature = "pgcmsiv")))]
         return Ok(ObAny::PsivC32(PsivC32 {
             masterkey: MasterKey::from_bytes(key_bytes)?,
         }));
@@ -894,33 +835,23 @@ impl ObAny {
             feature = "dsiv",
             feature = "pgcmsiv",
             feature = "psiv",
-            feature = "mock",
         )))]
         compile_error!("At least one oboron scheme must be enabled");
     }
 
     pub fn from_hex_key(key_hex: &str) -> Result<Self, Error> {
-        #[cfg(feature = "mock")]
-        return Ok(ObAny::Mock1C32(Mock1C32::from_hex_key(key_hex)?));
         #[cfg(feature = "dgcmsiv")]
-        #[cfg(not(any(feature = "mock")))]
         return Ok(ObAny::DgcmsivC32(DgcmsivC32::from_hex_key(key_hex)?));
         #[cfg(feature = "pgcmsiv")]
-        #[cfg(not(any(feature = "mock", feature = "dgcmsiv")))]
+        #[cfg(not(any(feature = "dgcmsiv")))]
         return Ok(ObAny::PgcmsivC32(PgcmsivC32::from_hex_key(key_hex)?));
         #[cfg(feature = "dsiv")]
-        #[cfg(not(any(feature = "mock", feature = "dgcmsiv", feature = "pgcmsiv")))]
+        #[cfg(not(any(feature = "dgcmsiv", feature = "pgcmsiv")))]
         return Ok(ObAny::DsivC32(DsivC32::from_hex_key(key_hex)?));
         #[cfg(feature = "psiv")]
-        #[cfg(not(any(
-            feature = "mock",
-            feature = "dgcmsiv",
-            feature = "pgcmsiv",
-            feature = "dsiv"
-        )))]
+        #[cfg(not(any(feature = "dgcmsiv", feature = "pgcmsiv", feature = "dsiv")))]
         return Ok(ObAny::PsivC32(PsivC32::from_hex_key(key_hex)?));
         #[cfg(not(any(
-            feature = "mock",
             feature = "dgcmsiv",
             feature = "pgcmsiv",
             feature = "dsiv",
@@ -931,40 +862,29 @@ impl ObAny {
 
     /// Create a new instance with hardcoded key (testing only).
     ///
-    /// Defaults to mock1.c32 format.
+    /// Defaults to dgcmsiv.c32 format.
     #[cfg(feature = "keyless")]
     pub fn new_keyless() -> Result<Self, Error> {
-        #[cfg(feature = "mock")]
-        return Ok(ObAny::Mock1C32(Mock1C32 {
-            masterkey: MasterKey::from_bytes(&HARDCODED_KEY_BYTES)?,
-        }));
         #[cfg(feature = "dgcmsiv")]
-        #[cfg(not(any(feature = "mock")))]
         return Ok(ObAny::DgcmsivC32(DgcmsivC32 {
             masterkey: MasterKey::from_bytes(&HARDCODED_KEY_BYTES)?,
         }));
         #[cfg(feature = "pgcmsiv")]
-        #[cfg(not(any(feature = "mock", feature = "dgcmsiv")))]
+        #[cfg(not(any(feature = "dgcmsiv")))]
         return Ok(ObAny::PgcmsivC32(PgcmsivC32 {
             masterkey: MasterKey::from_bytes(&HARDCODED_KEY_BYTES)?,
         }));
         #[cfg(feature = "dsiv")]
-        #[cfg(not(any(feature = "mock", feature = "dgcmsiv", feature = "pgcmsiv")))]
+        #[cfg(not(any(feature = "dgcmsiv", feature = "pgcmsiv")))]
         return Ok(ObAny::DsivC32(DsivC32 {
             masterkey: MasterKey::from_bytes(&HARDCODED_KEY_BYTES)?,
         }));
         #[cfg(feature = "psiv")]
-        #[cfg(not(any(
-            feature = "mock",
-            feature = "dgcmsiv",
-            feature = "pgcmsiv",
-            feature = "dsiv"
-        )))]
+        #[cfg(not(any(feature = "dgcmsiv", feature = "pgcmsiv", feature = "dsiv")))]
         return Ok(ObAny::PsivC32(PsivC32 {
             masterkey: MasterKey::from_bytes(&HARDCODED_KEY_BYTES)?,
         }));
         #[cfg(not(any(
-            feature = "mock",
             feature = "dgcmsiv",
             feature = "pgcmsiv",
             feature = "dsiv",
@@ -1175,6 +1095,11 @@ fn from_bytes_with_format_internal(format: Format, key_bytes: &[u8; 64]) -> Resu
 }
 
 fn from_hex_key_with_format_internal(format: Format, key_hex: &str) -> Result<ObAny, Error> {
+    // Spec §3.3: keys MUST be lowercase hex (the `hex` crate is
+    // case-insensitive, so reject uppercase explicitly).
+    if key_hex.bytes().any(|b| b.is_ascii_uppercase()) {
+        return Err(Error::InvalidHex);
+    }
     let key_vec = hex::decode(key_hex)?;
     let key_arr: [u8; 64] = key_vec.try_into().map_err(|_| Error::InvalidKeyLength)?;
     from_bytes_with_format_internal(format, &key_arr)
@@ -1191,31 +1116,10 @@ pub fn from_hex_key_with_format(format: Format, key_hex: &str) -> Result<ObAny, 
     from_hex_key_with_format_internal(format, key_hex)
 }
 
-/// Deprecated alias for [`from_hex_key`].
-///
-/// Kept for migration from any in-development 0.9.x preview;
-/// canonical pattern is `from_<format>_<target>`.
-#[deprecated(
-    since = "0.9.0",
-    note = "use from_hex_key instead — standard from_<format>_<target> pattern"
-)]
-pub fn from_key_hex(fmt: &str, key_hex: &str) -> Result<ObAny, Error> {
-    from_hex_key(fmt, key_hex)
-}
-
-/// Deprecated alias for [`from_hex_key_with_format`].
-#[deprecated(
-    since = "0.9.0",
-    note = "use from_hex_key_with_format instead — standard from_<format>_<target> pattern"
-)]
-pub fn from_key_hex_with_format(format: Format, key_hex: &str) -> Result<ObAny, Error> {
-    from_hex_key_with_format(format, key_hex)
-}
-
 /// Create an encoder from a format string and raw bytes.
 pub fn from_bytes(fmt: &str, key_bytes: &[u8; 64]) -> Result<ObAny, Error> {
     let format = Format::from_str(fmt)?;
-    from_bytes_with_format_internal(format, &key_bytes)
+    from_bytes_with_format_internal(format, key_bytes)
 }
 
 /// Create an encoder from a pre-parsed Format and raw bytes.
@@ -1300,10 +1204,9 @@ mod tests {
     fn test_new_from_format_string_all_combinations() {
         let key = crate::generate_key();
 
-        // Define all schemes
+        // Only the authenticated core schemes are string-parseable; the
+        // mock schemes are deliberately fenced out of the string factory.
         let schemes = vec![
-            Scheme::Mock2,
-            Scheme::Mock1,
             #[cfg(feature = "dgcmsiv")]
             Scheme::Dgcmsiv,
             #[cfg(feature = "pgcmsiv")]
@@ -1350,9 +1253,12 @@ mod tests {
         let key = crate::generate_key();
         let plaintext = "hello world";
 
-        // Define all schemes
+        // mock is reachable by value (not by string), so new_with_format
+        // still accepts it here.
         let schemes = vec![
+            #[cfg(feature = "mock")]
             Scheme::Mock2,
+            #[cfg(feature = "mock")]
             Scheme::Mock1,
             #[cfg(feature = "dgcmsiv")]
             Scheme::Dgcmsiv,

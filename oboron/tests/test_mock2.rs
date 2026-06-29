@@ -70,8 +70,9 @@ fn test_mock2_deterministic() {
 #[test]
 fn test_mock2_cross_scheme_with_mock1() {
     let key = oboron::generate_key();
-    let mock2 = oboron::Ob::new("mock2.c32", &key).unwrap();
-    let mock1 = oboron::Ob::new("mock1.c32", &key).unwrap();
+    // mock schemes are not string-parseable (fenced); build by value.
+    let mock2 = oboron::Ob::new(Format::new(Scheme::Mock2, Encoding::C32), &key).unwrap();
+    let mock1 = oboron::Ob::new(Format::new(Scheme::Mock1, Encoding::C32), &key).unwrap();
 
     let plaintext = "cross-scheme test";
     let ot71 = mock2.enc(plaintext).unwrap();
@@ -136,27 +137,18 @@ fn test_mock2_scheme_info() {
 }
 
 #[test]
-fn test_mock2_parse_scheme() {
-    let scheme: Scheme = "mock2".parse().unwrap();
-    assert_eq!(scheme, Scheme::Mock2);
-
-    let scheme: Scheme = "MOCK2".parse().unwrap(); // case insensitive
-    assert_eq!(scheme, Scheme::Mock2);
+fn test_mock2_scheme_not_string_parseable() {
+    // A no-encryption scheme must never be selectable from a string.
+    assert!("mock2".parse::<Scheme>().is_err());
+    assert!("MOCK2".parse::<Scheme>().is_err());
 }
 
 #[test]
-fn test_mock2_format_parsing() {
-    let format = Format::from_str("mock2.c32").unwrap();
-    assert_eq!(format.scheme(), Scheme::Mock2);
-    assert_eq!(format.encoding(), Encoding::C32);
-
-    let format = Format::from_str("mock2.b64").unwrap();
-    assert_eq!(format.scheme(), Scheme::Mock2);
-    assert_eq!(format.encoding(), Encoding::B64);
-
-    let format = Format::from_str("mock2.hex").unwrap();
-    assert_eq!(format.scheme(), Scheme::Mock2);
-    assert_eq!(format.encoding(), Encoding::Hex);
+fn test_mock2_format_not_string_parseable() {
+    // Mock formats are fenced out of the string parser; construct by value.
+    assert!(Format::from_str("mock2.c32").is_err());
+    assert!(Format::from_str("mock2.b64").is_err());
+    assert!(Format::from_str("mock2.hex").is_err());
 }
 
 #[test]

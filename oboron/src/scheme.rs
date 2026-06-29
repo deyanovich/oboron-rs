@@ -45,6 +45,9 @@ impl Scheme {
     }
 
     /// Parse scheme from string.
+    // Intentional inherent shortcut alongside the `FromStr` impl, so
+    // callers can write `Scheme::from_str(s)` without the trait import.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, Error> {
         s.parse()
     }
@@ -77,6 +80,21 @@ impl Scheme {
 impl std::str::FromStr for Scheme {
     type Err = Error;
 
+    /// Parse a scheme from its identifier.
+    ///
+    /// Inverse of [`Scheme::as_str`] **for the four authenticated core
+    /// schemes only**. The testing-only `mock1` / `mock2` schemes are
+    /// deliberately *not* parseable from a string, even when the `mock`
+    /// feature is enabled: a no-encryption scheme must never be
+    /// selectable through a string/config channel (the channel most
+    /// likely to carry external input). Construct them explicitly via
+    /// the `Scheme::Mock1` / `Scheme::Mock2` variants when needed in
+    /// tests.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::UnknownScheme`] if `s` doesn't match a feature-enabled
+    /// core scheme name (`"mock1"` / `"mock2"` always return this error).
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             #[cfg(feature = "dgcmsiv")]
@@ -87,11 +105,6 @@ impl std::str::FromStr for Scheme {
             "dsiv" => Ok(Scheme::Dsiv),
             #[cfg(feature = "psiv")]
             "psiv" => Ok(Scheme::Psiv),
-            // Testing
-            #[cfg(feature = "mock")]
-            "mock1" => Ok(Scheme::Mock1),
-            #[cfg(feature = "mock")]
-            "mock2" => Ok(Scheme::Mock2),
             _ => Err(Error::UnknownScheme),
         }
     }

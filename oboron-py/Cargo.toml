@@ -1,9 +1,9 @@
 [package]
 name = "oboron-py"
-# Tracks the oboron Rust crate: 1.0.0-rc1 aligns with oboron protocol
+# Tracks the oboron Rust crate: 1.0.0 aligns with oboron protocol
 # spec 1.0 — authenticated-only core. The unauthenticated/obfuscation
 # (obu) layer is a separate package and is NOT bound here.
-version = "1.0.0-rc1"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.77.0"
 authors = ["Bojan Đuričković"]
@@ -24,9 +24,11 @@ name = "_oboron"
 crate-type = ["cdylib"]
 
 [features]
-# Default: the four authenticated core schemes, mock schemes for
-# testing, and keyless constructors.
-default = ["secure-schemes", "mock", "keyless"]
+# Default: the four authenticated core schemes and keyless
+# constructors. The no-encryption `mock` schemes are NOT default —
+# they must never ship in a published wheel; enable `mock` explicitly
+# for tests.
+default = ["secure-schemes", "keyless"]
 
 # Aggregate: the four authenticated core schemes.
 secure-schemes = ["dgcmsiv", "pgcmsiv", "dsiv", "psiv"]

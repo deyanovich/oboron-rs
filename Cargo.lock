@@ -538,9 +538,9 @@ dependencies = [
 
 [[package]]
 name = "obcrypt"
-version = "1.0.0-rc1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4215e13e7cad7ce203fe495b0492e5146a6f1f1002dbb19f923ef0f4dce72a16"
+checksum = "b1d8cd71887cb295623ca6c0a316a3ec3570609b939f22d2a50e7fa3c73f190a"
 dependencies = [
  "aead",
  "aes-gcm-siv",
@@ -556,7 +556,7 @@ dependencies = [
 
 [[package]]
 name = "oboron"
-version = "1.0.0-rc1"
+version = "1.0.0"
 dependencies = [
  "criterion",
  "data-encoding",
@@ -578,14 +578,14 @@ dependencies = [
 
 [[package]]
 name = "oboron-ffi"
-version = "1.0.0-rc1"
+version = "1.0.0"
 dependencies = [
  "oboron",
 ]
 
 [[package]]
 name = "oboron-py"
-version = "1.0.0-rc1"
+version = "1.0.0"
 dependencies = [
  "oboron",
  "pyo3",
@@ -593,7 +593,7 @@ dependencies = [
 
 [[package]]
 name = "oboron-wasm"
-version = "1.0.0-rc1"
+version = "1.0.0"
 dependencies = [
  "oboron",
  "wasm-bindgen",

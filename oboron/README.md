@@ -603,9 +603,6 @@ Available features:
   binary size.
 - **`mock`** — mock1, mock2 testing schemes (no encryption).
 - **`keyless`** — hardcoded-key constructors for tests/obfuscation.
-- **`unchecked-utf8`** — skip post-decrypt UTF-8 validation. Wrong-key
-  decrypts return garbage instead of `InvalidUtf8`. Use only in
-  trusted-source scenarios.
 
 Hex and raw-byte key input are always available — no feature flag
 needed (`DsivC32::new(&hex_key)`, `DsivC32::from_bytes(&key_bytes)`).

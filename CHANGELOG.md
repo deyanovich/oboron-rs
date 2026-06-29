@@ -11,6 +11,56 @@ but note that pre-1.0 releases may not adhere strictly to all guidelines.
 ------------
 
 
+[oboron v1.0.0] - 2026-06-28
+----------------------------
+
+First stable release. Builds on `1.0.0-rc1` with the v1.0
+release-readiness fixes, and now depends on the published
+**obcrypt 1.0.0**.
+
+### Security / correctness
+
+- **Removed the `unchecked-utf8` feature.** The core `dec` path no
+  longer has any route to `String::from_utf8_unchecked`; it always
+  validates UTF-8 and returns `Error::InvalidUtf8` on non-UTF-8
+  plaintext (spec §4.1). The feature previously let a safe `dec`
+  reach undefined behavior on attacker- or mock-influenced bytes.
+- **Fenced the testing-only `mock` schemes.** `mock1` / `mock2` are
+  no longer selectable through any string/config channel
+  (`Scheme::from_str`, `Format::from_str`, the string-format
+  factories, the convenience functions, `Ob`, `Omnib`, and the
+  bindings), and the `ObAny` constructors now default to `dgcmsiv`
+  instead of `mock` — closing a feature-unification plaintext
+  downgrade. Mock stays constructible only explicitly and by value
+  (`Format::new(Scheme::Mock1, …)`, the concrete `Mock1*` types).
+
+### Changed
+
+- Depend on **obcrypt 1.0.0** (was the `1.0.0-rc1` prerelease).
+- `oboron-py` / `oboron-wasm`: the no-encryption `mock` codecs are no
+  longer in the default feature set, so they are not shipped in the
+  published wheel / npm package (still available behind
+  `--features mock` for tests).
+- `oboron-py`: declare the real dual license (`MIT OR Apache-2.0`)
+  in the package metadata.
+
+### Removed
+
+- The `from_key_hex` constructors (deprecated since 0.9.0 in favor of
+  `from_hex_key`) are removed from `Ob`, `Omnib`, the concrete codec
+  types, and the `ObAny` factory functions. Use `from_hex_key`. Keys
+  are hex-only — there is no base64 key encoding.
+
+### Testing / CI
+
+- Added a GitLab CI pipeline running the test suite across the
+  feature matrix plus `clippy -D warnings` — oboron previously had
+  no CI that ran its tests.
+- The canonical negative test vectors are now exercised (tamper /
+  non-canonical-encoding rejection), and a regression test guards
+  the always-validate-UTF-8 behavior.
+
+
 [oboron v1.0.0-rc1] - 2026-06-16
 --------------------------------
 

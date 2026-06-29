@@ -8,16 +8,15 @@ dynamic = ["version"]
 requires-python = ">=3.8"
 description = "Python bindings for oboron — string-in/string-out symmetric encryption + encoding (Dgcmsiv, Dsiv, Pgcmsiv, Psiv)."
 readme = "README.md"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "MIT OR Apache-2.0"
+license-files = ["LICENSE-MIT", "LICENSE-APACHE"]
 authors = [
     { name = "Bojan Đuričković" }
 ]
 keywords = ["python", "encryption", "encoding", "cryptography", "oboron"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",

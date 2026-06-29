@@ -25,6 +25,14 @@
 //! - **Panics never cross the boundary**: every entry point is
 //!   wrapped in `catch_unwind`.
 
+// Every `extern "C"` entry point dereferences caller-supplied raw
+// pointers by design — pointer validity is the documented C-caller
+// contract (see the module docs above), not something Rust can enforce.
+// The `unsafe`-fn marker would be invisible to the C callers these are
+// written for, so we scope the safety reasoning to the per-call
+// `unsafe { cstr(...) }` blocks instead.
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
 use std::cell::RefCell;
 use std::ffi::{c_char, CStr, CString};
 use std::panic::{catch_unwind, AssertUnwindSafe};

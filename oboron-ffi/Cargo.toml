@@ -1,9 +1,9 @@
 [package]
 name = "oboron-ffi"
-# Tracks the oboron Rust crate: 1.0.0-rc1 aligns with oboron protocol
+# Tracks the oboron Rust crate: 1.0.0 aligns with oboron protocol
 # spec 1.0 (authenticated-only core). The C ABI's stability surface is
 # the generated header.
-version = "1.0.0-rc1"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.77.0"
 authors = ["Bojan Đuričković"]

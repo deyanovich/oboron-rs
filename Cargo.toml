@@ -17,8 +17,8 @@ inherits = "release"
 
 [workspace.dependencies]
 # Internal: bytes-in/bytes-out cryptographic core (the released
-# 1.0 RC on crates.io; not a path dep on the sibling workspace).
-obcrypt = { version = "1.0.0-rc1", default-features = false }
+# 1.0 on crates.io; not a path dep on the sibling workspace).
+obcrypt = { version = "1.0.0", default-features = false }
 
 # PyO3 for the oboron-py bindings. abi3-py38 builds one stable-ABI
 # wheel per platform that covers CPython 3.8+, instead of one wheel

@@ -1,12 +1,12 @@
 [package]
 name = "oboron"
-# 1.0.0-rc1: aligns with the oboron protocol spec 1.0 (rev3) and
-# obcrypt 1.0.0-rc1. Authenticated-only core: schemes renamed to the
-# property-prefixed form (dsiv/psiv/dgcmsiv/pgcmsiv), the u-tier `upbc`
-# dropped (the unauthenticated layer lives in the `obu` crate), the
-# on-the-wire scheme marker removed (obtext is pure AEAD output),
-# `autodec` removed, and keys are hex-only (no base64).
-version = "1.0.0-rc1"
+# 1.0.0: aligns with the oboron protocol spec 1.0 and obcrypt 1.0.0.
+# Authenticated-only core: schemes renamed to the property-prefixed
+# form (dsiv/psiv/dgcmsiv/pgcmsiv), the u-tier `upbc` dropped (the
+# unauthenticated layer lives in the `obu` crate), the on-the-wire
+# scheme marker removed (obtext is pure AEAD output), `autodec`
+# removed, and keys are hex-only (no base64).
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.77.0"
 license = "MIT OR Apache-2.0"
@@ -38,10 +38,6 @@ mock = ["obcrypt/mock"]
 
 # Hardcoded-key constructors for testing/obfuscation.
 keyless = []
-
-# Skip UTF-8 validation post-decrypt. Wrong-key decrypts will return
-# garbage rather than InvalidUtf8.
-unchecked-utf8 = []
 
 [dependencies]
 # Internal: bytes-in/bytes-out cryptographic core

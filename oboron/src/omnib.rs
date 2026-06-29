@@ -131,20 +131,6 @@ impl Omnib {
         })
     }
 
-    /// Deprecated alias for [`Self::from_hex_key`].
-    ///
-    /// The 0.8.x name had the target/format order flipped relative
-    /// to the standard `from_<format>_<target>` pattern (e.g.
-    /// `from_hex_key`, `from_base64_secret`); renamed in 0.9.0 for
-    /// consistency.
-    #[deprecated(
-        since = "0.9.0",
-        note = "use Omnib::from_hex_key instead — standard from_<format>_<target> pattern"
-    )]
-    pub fn from_key_hex(key_hex: &str) -> Result<Self, Error> {
-        Self::from_hex_key(key_hex)
-    }
-
     /// Create a new `Omnib` instance from raw bytes.
     pub fn from_bytes(key_bytes: &[u8; 64]) -> Result<Self, Error> {
         Ok(Self {

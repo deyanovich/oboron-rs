@@ -153,8 +153,6 @@ _register_if_present(
     "DsivC32", "DsivB32", "DsivB64", "DsivHex",
     "PgcmsivC32", "PgcmsivB32", "PgcmsivB64", "PgcmsivHex",
     "PsivC32", "PsivB32", "PsivB64", "PsivHex",
-    "Mock1C32", "Mock1B32", "Mock1B64", "Mock1Hex",
-    "Mock2C32", "Mock2B32", "Mock2B64", "Mock2Hex",
     "Ob",
 )
 
@@ -191,16 +189,6 @@ PsivB32 = _oboron.PsivB32
 PsivB64 = _oboron.PsivB64
 PsivHex = _oboron.PsivHex
 
-# Mock1 / Mock2 (testing)
-Mock1C32 = _oboron.Mock1C32
-Mock1B32 = _oboron.Mock1B32
-Mock1B64 = _oboron.Mock1B64
-Mock1Hex = _oboron.Mock1Hex
-Mock2C32 = _oboron.Mock2C32
-Mock2B32 = _oboron.Mock2B32
-Mock2B64 = _oboron.Mock2B64
-Mock2Hex = _oboron.Mock2Hex
-
 # Utility functions
 generate_key = _oboron.generate_key
 generate_key_bytes = _oboron.generate_key_bytes
@@ -235,9 +223,6 @@ __all__ = [
     "PgcmsivC32", "PgcmsivB32", "PgcmsivB64", "PgcmsivHex",
     # Psiv
     "PsivC32", "PsivB32", "PsivB64", "PsivHex",
-    # Mock (testing)
-    "Mock1C32", "Mock1B32", "Mock1B64", "Mock1Hex",
-    "Mock2C32", "Mock2B32", "Mock2B64", "Mock2Hex",
     # Format constants module
     "formats",
     # Key generation

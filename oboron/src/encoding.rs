@@ -33,6 +33,9 @@ impl Encoding {
     }
 
     /// Parse encoding from string.
+    // Intentional inherent shortcut alongside the `FromStr` impl, so
+    // callers can write `Encoding::from_str(s)` without the trait import.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, Error> {
         s.parse()
     }

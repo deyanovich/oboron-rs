@@ -259,8 +259,6 @@ pub use ob::Ob;
 // Factory functions
 pub use codec::{from_bytes, from_bytes_with_format};
 pub use codec::{from_hex_key, from_hex_key_with_format};
-#[allow(deprecated)]
-pub use codec::{from_key_hex, from_key_hex_with_format};
 pub use codec::{new, new_with_format, ObAny, ObtextCodec};
 #[cfg(feature = "keyless")]
 pub use codec::{new_keyless, new_keyless_with_format};

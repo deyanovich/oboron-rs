@@ -106,8 +106,8 @@ impl Ob {
     /// # use oboron::{Ob, Format, Scheme, Encoding};
     /// # let key = oboron::generate_key();
     /// let mut ob = Ob::new("dsiv.c32", &key)?;
-    /// ob.set_format("mock1.b64")?; // switch using string
-    /// ob.set_format(Format::new(Scheme::Mock2, Encoding:: Hex))?; // switch using Format
+    /// ob.set_format("dsiv.b64")?; // switch using string (core schemes only)
+    /// ob.set_format(Format::new(Scheme::Mock2, Encoding:: Hex))?; // mock: by value only
     /// # }
     /// # Ok(())
     /// # }
@@ -217,18 +217,6 @@ impl Ob {
             masterkey: MasterKey::from_hex(key_hex)?,
             format,
         })
-    }
-
-    /// Deprecated alias for [`Self::from_hex_key`].
-    ///
-    /// Kept for migration from any in-development 0.9.x preview;
-    /// canonical pattern is `from_<format>_<target>`.
-    #[deprecated(
-        since = "0.9.0",
-        note = "use Ob::from_hex_key instead — standard from_<format>_<target> pattern"
-    )]
-    pub fn from_key_hex(format: impl IntoFormat, key_hex: &str) -> Result<Self, Error> {
-        Self::from_hex_key(format, key_hex)
     }
 
     /// Create a new Ob from the specified format and raw key bytes.

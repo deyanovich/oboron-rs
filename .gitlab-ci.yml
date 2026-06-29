@@ -1,0 +1,76 @@
+# CI for oboron. Runs on the authoritative (private) GitLab project;
+# the public mirror does not run CI.
+#
+# Uses gitlab.com shared runners with the official Rust Docker image,
+# so no custom runner tags are required. The pipeline gates the lib's
+# test suite across the feature matrix plus clippy — oboron must never
+# ship with a failing or unrun test.
+
+stages:
+  - test
+
+variables:
+  CARGO_TERM_COLOR: always
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .cargo/registry/
+    - target/
+
+default:
+  image: rust:latest
+  before_script:
+    - rustc --version && cargo --version
+
+# Full suite (incl. doc-tests and the negative-vector / fence tests),
+# each scheme on its own, and the bindings compile. The vectors live in
+# a submodule, so the checkout must be recursive (GIT_SUBMODULE_STRATEGY).
+test:
+  stage: test
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+  script:
+    - cargo test -p oboron --all-features
+    - cargo test -p oboron
+    - cargo build -p oboron --no-default-features --features dgcmsiv
+    - cargo build -p oboron --no-default-features --features pgcmsiv
+    - cargo build -p oboron --no-default-features --features dsiv
+    - cargo build -p oboron --no-default-features --features psiv
+    - cargo build -p oboron-ffi
+    - cargo build -p oboron-wasm
+
+# clippy across the whole workspace with warnings denied. The core, the
+# bindings, and the testing-only mock build must all be warning-clean.
+lint:
+  stage: test
+  script:
+    - rustup component add clippy
+    - cargo clippy --workspace --all-features -- -D warnings
+
+# Builds the oboron wheel and runs the Python binding's tests across the
+# PyO3 boundary that the Rust core tests don't reach. Marked
+# allow_failure until validated on a first CI run; promote to required
+# afterwards.
+python-test:
+  stage: test
+  allow_failure: true
+  script:
+    - apt-get update && apt-get install -y --no-install-recommends python3 python3-venv
+    - python3 -m venv .venv
+    - . .venv/bin/activate
+    - pip install --upgrade pip
+    - pip install 'maturin>=1.0,<2.0' pytest
+    - maturin develop --manifest-path oboron-py/Cargo.toml
+    - pytest oboron-py/python -q
+
+# Validates the declared MSRV (rust-version = 1.77). Non-blocking: a
+# failure flags that the floor needs revisiting, without gating merges.
+msrv:
+  stage: test
+  image: rust:1.77
+  allow_failure: true
+  cache: {}
+  script:
+    - cargo build -p oboron --all-features
